@@ -17,10 +17,9 @@ spec:
         - name: fluid
           image: astera-infra.com/fluid
           command:
-            - "pixi"
-            - "run"
-            - "--"
-            - "pytest -svv -k test_single_env_gridworld --slow"
+            - "bash"
+            - "-c"
+            - 'cd fluid && eval "$(pixi shell-hook)" && python --version && pwd'
           env:
             - name: GIT_PYTHON_REFRESH
               value: quiet
