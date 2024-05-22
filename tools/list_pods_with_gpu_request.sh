@@ -4,8 +4,8 @@
 #
 # namespace                     pod                                           node                            gpu_request  status     creation_date            launched_by_user  launched_by_hostname
 # gh-actions-runner-scale-sets  berkeley-gpu-runners-c8wpl-runner-8g7br       clever-jaguar.astera-infra.com  1            Running    2024-05-13 16:49:48 PST  N/A               N/A
-# obelisk-launch                obelisk-fluid-9gf2r-dxwl9                     set-falcon.astera-infra.com     1            Succeeded  2024-05-13 15:36:01 PST  N/A               pop-os
-# obelisk-launch                obelisk-fluid-xj4hb-lrfsk                     set-falcon.astera-infra.com     1            Succeeded  2024-05-13 14:49:21 PST  N/A               pop-os
+# launch                        obelisk-fluid-9gf2r-dxwl9                     set-falcon.astera-infra.com     1            Succeeded  2024-05-13 15:36:01 PST  N/A               pop-os
+# launch                        obelisk-fluid-xj4hb-lrfsk                     set-falcon.astera-infra.com     1            Succeeded  2024-05-13 14:49:21 PST  N/A               pop-os
 # ray                           ray-cluster-kuberay-worker-workergroup-9gbh8  set-falcon.astera-infra.com     4            Running    2024-05-13 15:38:26 PST  N/A               N/A
 # ray                           ray-cluster-kuberay-worker-workergroup-r7zrg  legal-jackal.astera-infra.com   4            Running    2024-05-13 15:39:35 PST  N/A               N/A
 
