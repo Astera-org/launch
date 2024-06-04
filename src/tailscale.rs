@@ -1,10 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{
-    as_ref,
-    kubectl::{self, kubectl_use_context},
-    process,
-};
+use crate::{as_ref, process};
 
 #[cfg(target_os = "macos")]
 fn tailscale() -> process::Command {
@@ -73,35 +69,4 @@ pub fn tailscale_get_user() -> Result<String, Box<dyn std::error::Error>> {
         .expect("failed to obtain tailscale user name")
         .login_name
         .clone())
-}
-
-/// Will attempt to restore the kubernetes context on drop.
-#[must_use]
-pub struct RestoreKubernetesContext(String);
-
-impl Drop for RestoreKubernetesContext {
-    fn drop(&mut self) {
-        log::debug!("kubernetes context restored to {:?}", &self.0);
-        if let Err(error) = kubectl_use_context(&self.0) {
-            log::warn!("Failed to restore kubernetes context {:?}: {error}", self.0);
-        }
-    }
-}
-
-pub fn tailscale_configure_kubeconfig(
-    tailscale_operator: &str,
-) -> Result<RestoreKubernetesContext, Box<dyn std::error::Error>> {
-    let previous_context = kubectl::kubectl_current_context()?;
-    tailscale()
-        .args(as_ref!["configure", "kubeconfig", tailscale_operator])
-        .output()?;
-    if log::log_enabled!(log::Level::Info) {
-        let current_context = kubectl::kubectl_current_context()?;
-        if previous_context != current_context {
-            log::debug!(
-                "kubernetes context switched from {previous_context:?} to {current_context:?}"
-            );
-        }
-    }
-    Ok(RestoreKubernetesContext(previous_context))
 }

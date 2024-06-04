@@ -63,7 +63,6 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
     // Configured in `k8s-cluster.yml` under `containerd_registries_mirrors`.
     let image_registry_inside_cluster = "astera-infra.com";
     let image_name = "fluid";
-    let tailscale_operator = "berkeley-tailscale-operator";
     let headlamp_base_url = "https://berkeley-headlamp.taila1eba.ts.net";
     let job_namespace = "launch";
 
@@ -83,8 +82,6 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
 
     let home_dir = home_dir().ok_or("failed to determine home directory")?;
 
-    let _restore_context = launch::tailscale_configure_kubeconfig(tailscale_operator)?;
-
     // Create databricks secret from file.
     let databrickscfg_path = home_dir.join(".databrickscfg");
     if let Err(error) = std::fs::metadata(&databrickscfg_path) {
@@ -94,7 +91,11 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
         )
         .into());
     }
-    launch::kubectl_recreate_secret_from_file(job_namespace, "databrickscfg", &databrickscfg_path)?;
+
+    let kubectl =
+        launch::Kubectl::new("https://berkeley-tailscale-operator.taila1eba.ts.net".to_string());
+
+    kubectl.recreate_secret_from_file(job_namespace, "databrickscfg", &databrickscfg_path)?;
 
     let generate_name = format!(
         "launch-{}-",
@@ -173,7 +174,7 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
     }).to_string();
 
     let job_name = {
-        let job = launch::kubectl_create_job(&job_spec)?;
+        let job = kubectl.create_job(&job_spec)?;
         assert_eq!(job_namespace, job.namespace);
         job.job_name
     };
@@ -186,7 +187,7 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
     );
 
     let pod_name = {
-        let mut pods = launch::kubectl_get_pods_for_job(job_namespace, &job_name)?;
+        let mut pods = kubectl.get_pods_for_job(job_namespace, &job_name)?;
         assert_eq!(pods.len(), 1);
         pods.pop().unwrap()
     };
@@ -199,7 +200,7 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
 
     info!("Waiting for pod logs to become available...");
 
-    let mut status = launch::kubectl_pod_status(job_namespace, &pod_name)?;
+    let mut status = kubectl.pod_status(job_namespace, &pod_name)?;
     debug!("Pod status: {status}");
 
     fn are_logs_available(status: &PodStatus) -> Option<bool> {
@@ -240,7 +241,7 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
         std::thread::sleep(std::time::Duration::from_secs(2));
 
         status = {
-            let new_status = launch::kubectl_pod_status(job_namespace, &pod_name)?;
+            let new_status = kubectl.pod_status(job_namespace, &pod_name)?;
             if new_status != status {
                 debug!("Pod status: {new_status}");
             }
@@ -255,7 +256,7 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
         .into());
     }
 
-    launch::kubectl_follow_pod_logs(job_namespace, &pod_name)?;
+    kubectl.follow_pod_logs(job_namespace, &pod_name)?;
 
     Ok(())
 }

@@ -8,58 +8,149 @@ pub use pod_status::*;
 mod name;
 pub use name::*;
 
-fn kubectl() -> process::Command {
-    process::Command::new("kubectl")
+pub struct Kubectl {
+    server: String,
 }
 
-pub fn kubectl_recreate_secret_from_file(
-    namespace: &str,
-    name: &str,
-    path: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
-    kubectl()
-        .args(as_ref![
-            "delete",
-            "secret",
-            "--ignore-not-found",
-            "--namespace",
-            namespace,
-            name,
+impl Kubectl {
+    pub fn new(server: String) -> Self {
+        Self { server }
+    }
+
+    /// Returns the kubectl command where authentication arguments have already been set.
+    fn kubectl(&self) -> process::Command {
+        process::Command::new("kubectl").args(as_ref![
+            // Despite passing `--server` and `--token`, kubectl will still load the kubeconfig if
+            // present. By setting `--kubeconfig` to an empty file, we can make sure no other
+            // options apply.
+            "--kubeconfig=/dev/null", // Does not work on Windows but Windows users develop inside WSL.
+            "--server",
+            self.server,
+            "--token=unused",
         ])
-        .status()?;
+    }
 
-    kubectl()
-        .args(as_ref![
-            "create",
-            "secret",
-            "generic",
-            "--from-file",
-            path,
-            "--namespace",
-            namespace,
-            name,
-        ])
-        .status()?;
+    pub fn recreate_secret_from_file(
+        &self,
+        namespace: &str,
+        name: &str,
+        path: &Path,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.kubectl()
+            .args(as_ref![
+                "delete",
+                "secret",
+                "--ignore-not-found",
+                "--namespace",
+                namespace,
+                name,
+            ])
+            .status()?;
 
-    Ok(())
-}
+        self.kubectl()
+            .args(as_ref![
+                "create",
+                "secret",
+                "generic",
+                "--from-file",
+                path,
+                "--namespace",
+                namespace,
+                name,
+            ])
+            .status()?;
 
-pub fn kubectl_current_context() -> Result<String, Box<dyn std::error::Error>> {
-    Ok(std::str::from_utf8(
-        &kubectl()
-            .args(as_ref!["config", "current-context"])
-            .output()?
-            .stdout,
-    )?
-    .trim()
-    .to_string())
-}
+        Ok(())
+    }
 
-pub fn kubectl_use_context(context: &str) -> Result<(), Box<dyn std::error::Error>> {
-    kubectl()
-        .args(as_ref!["config", "use-context", context])
-        .output()?;
-    Ok(())
+    /// The input is written to stdin and should be a [YAML or JSON formatted kubernetes
+    /// configuration](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/imperative-config/).
+    pub fn create_job(&self, input: &str) -> Result<JobHandle, Box<dyn std::error::Error>> {
+        let output = self
+            .kubectl()
+            .args(as_ref!["create", "--output=json", "-f", "-"])
+            .output_with_input(input.as_bytes().to_owned())?;
+
+        let root: CreateJobRoot = serde_json::from_slice(&output.stdout)?;
+
+        Ok(JobHandle {
+            namespace: root.metadata.namespace,
+            job_name: root.metadata.name,
+        })
+    }
+
+    pub fn get_pods_for_job(
+        &self,
+        namespace: &str,
+        job_name: &str,
+    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+        let output = self
+            .kubectl()
+            .args(as_ref![
+                "get",
+                "pods",
+                "--namespace",
+                namespace,
+                format!("--selector=job-name={job_name}"),
+                "--output=jsonpath={.items[*].metadata.name}"
+            ])
+            .output()?;
+
+        Ok(std::str::from_utf8(&output.stdout)?
+            .split_whitespace()
+            .map(str::to_string)
+            .collect())
+    }
+
+    pub fn follow_pod_logs(
+        &self,
+        namespace: &str,
+        pod_name: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.kubectl()
+            .args(as_ref!["logs", "--namespace", namespace, "-f", pod_name,])
+            .status()?;
+        Ok(())
+    }
+
+    pub fn describe_pod(
+        &self,
+        namespace: &str,
+        pod_name: &str,
+    ) -> Result<(), Box<dyn std::error::Error>> {
+        self.kubectl()
+            .args(as_ref![
+                "describe",
+                "pod",
+                "--namespace",
+                namespace,
+                pod_name,
+            ])
+            .status()?;
+        Ok(())
+    }
+
+    pub fn pod_status(
+        &self,
+        namespace: &str,
+        pod_name: &str,
+    ) -> Result<PodStatus, Box<dyn std::error::Error>> {
+        let output = self
+            .kubectl()
+            .args(as_ref![
+                "get",
+                "pod",
+                "--namespace",
+                namespace,
+                pod_name,
+                "--output=json",
+            ])
+            .output()?;
+
+        let root: PodStatusRoot = serde_json::from_slice(&output.stdout)?;
+
+        Ok(root.status)
+    }
 }
 
 #[derive(Debug)]
@@ -77,68 +168,6 @@ struct CreateJobRoot {
 struct CreateOutputMetadata {
     name: String,
     namespace: String,
-}
-
-/// The input is written to stdin and should be a [YAML or JSON formatted kubernetes
-/// configuration](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/imperative-config/).
-pub fn kubectl_create_job(input: &str) -> Result<JobHandle, Box<dyn std::error::Error>> {
-    let output = kubectl()
-        .args(as_ref!["create", "--output=json", "-f", "-"])
-        .output_with_input(input.as_bytes().to_owned())?;
-
-    let root: CreateJobRoot = serde_json::from_slice(&output.stdout)?;
-
-    Ok(JobHandle {
-        namespace: root.metadata.namespace,
-        job_name: root.metadata.name,
-    })
-}
-
-pub fn kubectl_get_pods_for_job(
-    namespace: &str,
-    job_name: &str,
-) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-    let output = kubectl()
-        .args(as_ref![
-            "get",
-            "pods",
-            "--namespace",
-            namespace,
-            format!("--selector=job-name={job_name}"),
-            "--output=jsonpath={.items[*].metadata.name}"
-        ])
-        .output()?;
-
-    Ok(std::str::from_utf8(&output.stdout)?
-        .split_whitespace()
-        .map(str::to_string)
-        .collect())
-}
-
-pub fn kubectl_follow_pod_logs(
-    namespace: &str,
-    pod_name: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    kubectl()
-        .args(as_ref!["logs", "--namespace", namespace, "-f", pod_name,])
-        .status()?;
-    Ok(())
-}
-
-pub fn kubectl_describe_pod(
-    namespace: &str,
-    pod_name: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
-    kubectl()
-        .args(as_ref![
-            "describe",
-            "pod",
-            "--namespace",
-            namespace,
-            pod_name,
-        ])
-        .status()?;
-    Ok(())
 }
 
 // https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
@@ -175,24 +204,4 @@ pub enum PodStatusPhase {
 #[derive(Debug, serde::Deserialize)]
 pub struct PodStatusRoot {
     pub status: PodStatus,
-}
-
-pub fn kubectl_pod_status(
-    namespace: &str,
-    pod_name: &str,
-) -> Result<PodStatus, Box<dyn std::error::Error>> {
-    let output = kubectl()
-        .args(as_ref![
-            "get",
-            "pod",
-            "--namespace",
-            namespace,
-            pod_name,
-            "--output=json",
-        ])
-        .output()?;
-
-    let root: PodStatusRoot = serde_json::from_slice(&output.stdout)?;
-
-    Ok(root.status)
 }
