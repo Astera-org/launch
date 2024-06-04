@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/prefix-dev/recipe-format/main/schema.json
+
+context:
+  name: ${{ load_from_file("launch/Cargo.toml").package.name }}
+  version: ${{ load_from_file("launch/Cargo.toml").package.version }}
+  description: ${{ load_from_file("launch/Cargo.toml").package.description }}
+
+package:
+  name: ${{ name }}
+  version: ${{ version }}
+
+source:
+  path: ../..
+
+build:
+  script:
+    - cd launch
+    - cargo test --release --locked
+    - cargo install --locked --bins --root ${PREFIX} --path .
+
+requirements:
+  build:
+    - ${{ compiler('rust') }}
+
+about:
+  homepage: https://github.com/Astera-org/obelisk/tree/master/launch/README.md
+  description: ${{ description }}

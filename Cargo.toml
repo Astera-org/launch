@@ -5,7 +5,9 @@ members = ["launch"]
 [package]
 name = "launch"
 description = "A tool to help submit work to our cluster."
-version = "0.1.0"
+# Bumping version should automatically result in a new release.
+# See .github/workflows/package_launch.yaml.
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
