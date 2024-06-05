@@ -1,14 +1,29 @@
+use constcat::concat;
 use home::home_dir;
 use launch::{ContainerStatus, PodPhase, PodPhasePendingReason, PodPhaseRunningReason, PodStatus};
-use log::{debug, info};
+use log::{debug, info, warn};
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
+
+const DATABRICKSCFG_NAME: &str = "databrickscfg";
+const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";
 
 #[derive(Debug, Parser)]
 #[command(version, about)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Debug, Default, Clone, Copy, ValueEnum)]
+enum DatabricksCfgMode {
+    /// The databrickscfg secret will be created and attached to the container if possible.
+    #[default]
+    Auto,
+    /// The databrickscfg secret is required.
+    Require,
+    /// The databrickscfg secret should be omitted.
+    Omit,
 }
 
 #[derive(Debug, Subcommand)]
@@ -19,6 +34,10 @@ enum Commands {
         /// The minimum number of GPUs required to execute the work.
         #[arg(long = "gpus", default_value = "0")]
         gpus: u32,
+
+        #[arg(long = "databrickscfg-mode", value_enum, default_value_t, help = concat!("Control whether a secret named \"", DATABRICKSCFG_NAME, "\" should be created from the submitting machine and mounted as a file at \"", DATABRICKSCFG_MOUNT, "\" through a volume in the container of the submitted job."))]
+        databrickscfg_mode: DatabricksCfgMode,
+
         #[arg(required = true, last = true)]
         command: Vec<String>,
     },
@@ -33,8 +52,12 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
 
     match args.command {
-        Commands::Submit { gpus, command } => {
-            submit(gpus, command)?;
+        Commands::Submit {
+            gpus,
+            databrickscfg_mode: databrickscfg,
+            command,
+        } => {
+            submit(gpus, databrickscfg, command)?;
         }
         Commands::List => {
             todo!();
@@ -58,7 +81,11 @@ fn get_user() -> Result<String, Box<dyn std::error::Error>> {
     })
 }
 
-fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Error>> {
+fn submit(
+    gpus: u32,
+    databrickscfg_mode: DatabricksCfgMode,
+    command: Vec<String>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let image_registry_outside_cluster = "berkeley-docker.taila1eba.ts.net";
     // Configured in `k8s-cluster.yml` under `containerd_registries_mirrors`.
     let image_registry_inside_cluster = "astera-infra.com";
@@ -82,20 +109,40 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
 
     let home_dir = home_dir().ok_or("failed to determine home directory")?;
 
-    // Create databricks secret from file.
-    let databrickscfg_path = home_dir.join(".databrickscfg");
-    if let Err(error) = std::fs::metadata(&databrickscfg_path) {
-        return Err(format!(
-            "Databricks configuration not found at {databrickscfg_path:?}: {error}. \
-            See https://github.com/Astera-org/obelisk/blob/master/fluid/README.md to learn how to get databricked up."
-        )
-        .into());
-    }
-
     let kubectl =
         launch::Kubectl::new("https://berkeley-tailscale-operator.taila1eba.ts.net".to_string());
 
-    kubectl.recreate_secret_from_file(job_namespace, "databrickscfg", &databrickscfg_path)?;
+    // Create databricks secret from file.
+    let supply_databrickscfg = if matches!(
+        databrickscfg_mode,
+        DatabricksCfgMode::Auto | DatabricksCfgMode::Require
+    ) {
+        let databrickscfg_path = home_dir.join(".databrickscfg");
+        if let Err(error) = std::fs::metadata(&databrickscfg_path) {
+            if matches!(databrickscfg_mode, DatabricksCfgMode::Require) {
+                return Err(format!(
+                    "Databricks configuration not found at {databrickscfg_path:?}: {error}. \
+                    Please follow the instructions at https://github.com/Astera-org/obelisk/blob/master/fluid/README.md#logging-to-mlflow."
+                ).into());
+            } else {
+                warn!(
+                    "Databricks configuration not found at {databrickscfg_path:?}: {error}. \
+                    Please follow the instructions at https://github.com/Astera-org/obelisk/blob/master/fluid/README.md#logging-to-mlflow. \
+                    To omit the databricks configuration and avoid this warning, pass `--databrickcfg-mode omit`."
+                );
+            }
+            false
+        } else {
+            kubectl.recreate_secret_from_file(
+                job_namespace,
+                "databrickscfg",
+                &databrickscfg_path,
+            )?;
+            true
+        }
+    } else {
+        false
+    };
 
     let generate_name = format!(
         "launch-{}-",
@@ -103,6 +150,29 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
             "Failed to generated job name from tailscale username {launched_by_user:?}"
         ))?
     );
+
+    let (volume_mounts, volumes) = if supply_databrickscfg {
+        (
+            serde_json::json!([
+                {
+                    "name": DATABRICKSCFG_NAME,
+                    "mountPath": DATABRICKSCFG_MOUNT,
+                    "subPath": ".databrickscfg",
+                    "readOnly": true
+                }
+            ]),
+            serde_json::json!([
+                {
+                    "name": "databrickscfg",
+                    "secret": {
+                        "secretName": DATABRICKSCFG_NAME,
+                    }
+                }
+            ]),
+        )
+    } else {
+        (serde_json::json!([]), serde_json::json!([]))
+    };
 
     let job_spec = serde_json::json!({
         "apiVersion": "batch/v1",
@@ -137,14 +207,7 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
                                     "value": "quiet"
                                 }
                             ],
-                            "volumeMounts": [
-                                {
-                                    "name": "databrickscfg",
-                                    "mountPath": "/root/.databrickscfg",
-                                    "subPath": ".databrickscfg",
-                                    "readOnly": true
-                                }
-                            ],
+                            "volumeMounts": volume_mounts,
                             "resources": {
                                 "limits": {
                                     "nvidia.com/gpu": gpus,
@@ -152,14 +215,7 @@ fn submit(gpus: u32, command: Vec<String>) -> Result<(), Box<dyn std::error::Err
                             }
                         }
                     ],
-                    "volumes": [
-                        {
-                            "name": "databrickscfg",
-                            "secret": {
-                                "secretName": "databrickscfg"
-                            }
-                        }
-                    ],
+                    "volumes": volumes,
                     // Defines whether a container should be restarted until it 1) runs forever, 2)
                     // runs succesfully, or 3) has run once. We just want our command to run once
                     // and so we never restart.

@@ -12,6 +12,7 @@ edition = "2021"
 
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
+constcat = "0.5.0"
 env_logger = "0.11.3"
 home = "0.5.9"
 log = "0.4.21"
