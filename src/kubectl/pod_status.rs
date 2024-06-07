@@ -12,6 +12,38 @@ pub struct PodStatus {
     pub container_statuses: Vec<ContainerStatus>,
 }
 
+impl PodStatus {
+    pub fn are_logs_available(&self) -> Option<bool> {
+        match &self.phase {
+            PodPhase::Pending(reason) => match reason.as_ref() {
+                Some(PodPhasePendingReason::ContainerCreating) => None,
+                Some(PodPhasePendingReason::PodScheduled) => None,
+                Some(PodPhasePendingReason::Unschedulable) => Some(false),
+                None => {
+                    if self
+                        .container_statuses
+                        .iter()
+                        .any(ContainerStatus::cannot_pull_image)
+                    {
+                        Some(false)
+                    } else {
+                        None
+                    }
+                }
+            },
+            PodPhase::Running(reason) => match reason.as_ref() {
+                Some(PodPhaseRunningReason::Started) => Some(true),
+                Some(PodPhaseRunningReason::ContainerCreating) => None,
+                Some(PodPhaseRunningReason::PodInitializing) => None,
+                None => Some(true),
+            },
+            PodPhase::Succeeded(_) => Some(true),
+            PodPhase::Failed(_) => Some(false),
+            PodPhase::Unknown(_) => Some(false),
+        }
+    }
+}
+
 // https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct ContainerStatus {

@@ -1,8 +1,7 @@
-mod docker;
-mod kubectl;
+pub mod build;
+pub(crate) mod docker;
+pub mod execution;
+pub mod git;
+pub mod kubectl;
 pub(crate) mod process;
-mod tailscale;
-
-pub use docker::*;
-pub use kubectl::*;
-pub use tailscale::*;
+pub mod tailscale;

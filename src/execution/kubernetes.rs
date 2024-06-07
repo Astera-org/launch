@@ -1,0 +1,107 @@
+//! The kubernetes job backend implementation.
+
+use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
+use crate::{execution::common, kubectl::ResourceHandle};
+use log::{debug, info};
+
+fn job_spec(args: &ExecutionArgs) -> serde_json::Value {
+    let image = args.image();
+    serde_json::json!({
+        "apiVersion": "batch/v1",
+        "kind": "Job",
+        "metadata": {
+            "namespace": args.job_namespace,
+            "generateName": args.generate_name,
+            "annotations": {
+                "launched_by_user": args.launched_by_user,
+                "launched_by_hostname": args.launched_by_hostname
+            }
+        },
+        "spec": {
+            "template": {
+                "metadata": {
+                    "annotations": {
+                        "launched_by_user": args.launched_by_user,
+                        "launched_by_hostname": args.launched_by_hostname,
+                    }
+                },
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "main",
+                            "image": &image,
+                            "command": args.command,
+                            "env": [
+                                {
+                                    // Suppress warnings from GitPython (used by mlflow)
+                                    // about the git executable not being available.
+                                    "name": "GIT_PYTHON_REFRESH",
+                                    "value": "quiet"
+                                }
+                            ],
+                            "volumeMounts": args.volume_mounts,
+                            "resources": {
+                                "limits": {
+                                    "nvidia.com/gpu": args.gpus,
+                                }
+                            }
+                        }
+                    ],
+                    "volumes": args.volumes,
+                    // Defines whether a container should be restarted until it 1) runs forever, 2)
+                    // runs succesfully, or 3) has run once. We just want our command to run once
+                    // and so we never restart.
+                    "restartPolicy": "Never"
+                }
+            },
+            // How many times to retry running the pod and all its containers, should any of them
+            // fail.
+            "backoffLimit": 0,
+            "ttlSecondsAfterFinished": 86400
+        }
+    })
+}
+
+pub struct KubernetesExecutionBackend;
+
+impl ExecutionBackend for KubernetesExecutionBackend {
+    fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput> {
+        let headlamp_base_url = args.headlamp_base_url;
+
+        let (job_namespace, job_name) = {
+            let job_spec = job_spec(&args);
+            let ResourceHandle { namespace, name } = args.kubectl.create(&job_spec.to_string())?;
+            assert_eq!(args.job_namespace, namespace);
+            (namespace, name)
+        };
+
+        debug!("job_namespace: {:?}", job_namespace);
+        debug!("job_id: {:?}", job_name);
+        info!(
+            "Created job {:?}",
+            format!("{headlamp_base_url}/c/main/jobs/{job_namespace}/{job_name}")
+        );
+
+        let pod_name = {
+            let mut pod_names = args.kubectl.get_pods_for_job(&job_namespace, &job_name)?;
+            for pod_name in &pod_names {
+                info!(
+                    "Created pod {:?}",
+                    format!("{headlamp_base_url}/c/main/pods/{job_namespace}/{pod_name}")
+                );
+            }
+            let pod_name = pod_names.pop().ok_or("No pods created for job")?;
+            if !pod_names.is_empty() {
+                return Err(format!(
+                    "Expected only a single pod for job {job_name:?} but there are multiple. Not sure for which one to follow the logs."
+                )
+                .into());
+            }
+            pod_name
+        };
+
+        common::wait_for_and_follow_pod_logs(args.kubectl, &job_namespace, &pod_name)?;
+
+        Ok(ExecutionOutput {})
+    }
+}

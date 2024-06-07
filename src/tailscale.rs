@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::{as_ref, process};
+use crate::process;
 
 #[cfg(target_os = "macos")]
 fn tailscale() -> process::Command {
@@ -55,8 +55,8 @@ struct TailscaleStatusUser {
     login_name: String,
 }
 
-pub fn tailscale_get_user() -> Result<String, Box<dyn std::error::Error>> {
-    let output = tailscale().args(as_ref!["status", "--json",]).output()?;
+pub fn get_user() -> Result<String, Box<dyn std::error::Error>> {
+    let output = process::args!(tailscale(), "status", "--json").output()?;
 
     let json: TailscaleStatusRoot = serde_json::from_slice(&output.stdout)?;
 

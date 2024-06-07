@@ -1,12 +1,13 @@
 use std::path::Path;
 
-use crate::{as_ref, process};
+use crate::process;
 
 mod pod_status;
 pub use pod_status::*;
 
 mod name;
 pub use name::*;
+use serde::Deserialize;
 
 pub struct Kubectl {
     server: String,
@@ -19,7 +20,8 @@ impl Kubectl {
 
     /// Returns the kubectl command where authentication arguments have already been set.
     fn kubectl(&self) -> process::Command {
-        process::Command::new("kubectl").args(as_ref![
+        process::command!(
+            "kubectl",
             // Despite passing `--server` and `--token`, kubectl will still load the kubeconfig if
             // present. By setting `--kubeconfig` to an empty file, we can make sure no other
             // options apply.
@@ -27,7 +29,7 @@ impl Kubectl {
             "--server",
             self.server,
             "--token=unused",
-        ])
+        )
     }
 
     pub fn recreate_secret_from_file(
@@ -36,47 +38,78 @@ impl Kubectl {
         name: &str,
         path: &Path,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        self.kubectl()
-            .args(as_ref![
-                "delete",
-                "secret",
-                "--ignore-not-found",
-                "--namespace",
-                namespace,
-                name,
-            ])
-            .status()?;
+        process::args!(
+            self.kubectl(),
+            "delete",
+            "secret",
+            "--ignore-not-found",
+            "--namespace",
+            namespace,
+            name,
+        )
+        .status()?;
 
-        self.kubectl()
-            .args(as_ref![
-                "create",
-                "secret",
-                "generic",
-                "--from-file",
-                path,
-                "--namespace",
-                namespace,
-                name,
-            ])
-            .status()?;
+        process::args!(
+            self.kubectl(),
+            "create",
+            "secret",
+            "generic",
+            "--from-file",
+            path,
+            "--namespace",
+            namespace,
+            name,
+        )
+        .status()?;
 
         Ok(())
     }
 
     /// The input is written to stdin and should be a [YAML or JSON formatted kubernetes
     /// configuration](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/imperative-config/).
-    pub fn create_job(&self, input: &str) -> Result<JobHandle, Box<dyn std::error::Error>> {
-        let output = self
-            .kubectl()
-            .args(as_ref!["create", "--output=json", "-f", "-"])
+    pub fn create(&self, input: &str) -> Result<ResourceHandle, Box<dyn std::error::Error>> {
+        let output = process::args!(self.kubectl(), "create", "--output=json", "-f", "-")
             .output_with_input(input.as_bytes().to_owned())?;
 
         let root: CreateJobRoot = serde_json::from_slice(&output.stdout)?;
 
-        Ok(JobHandle {
+        Ok(ResourceHandle {
             namespace: root.metadata.namespace,
-            job_name: root.metadata.name,
+            name: root.metadata.name,
         })
+    }
+
+    pub fn try_get_job(
+        &self,
+        namespace: &str,
+        job_name: &str,
+    ) -> Result<Option<Job>, Box<dyn std::error::Error>> {
+        let output = process::args!(
+            self.kubectl(),
+            "get",
+            "job",
+            "--namespace",
+            namespace,
+            job_name,
+            "--output=json"
+        )
+        .try_output()?;
+
+        let process::Output { command, output } = output;
+
+        if output.status.success() {
+            Ok(Some(serde_json::from_slice(&output.stdout)?))
+        } else if output.stderr.starts_with(b"Error from server (NotFound): ") {
+            Ok(None)
+        } else {
+            Err(process::Error {
+                command,
+                kind: process::ErrorKind::NonZeroExitStatus(
+                    output.status.code().and_then(std::num::NonZeroI32::new),
+                ),
+            }
+            .into())
+        }
     }
 
     pub fn get_pods_for_job(
@@ -84,17 +117,16 @@ impl Kubectl {
         namespace: &str,
         job_name: &str,
     ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
-        let output = self
-            .kubectl()
-            .args(as_ref![
-                "get",
-                "pods",
-                "--namespace",
-                namespace,
-                format!("--selector=job-name={job_name}"),
-                "--output=jsonpath={.items[*].metadata.name}"
-            ])
-            .output()?;
+        let output = process::args!(
+            self.kubectl(),
+            "get",
+            "pods",
+            "--namespace",
+            namespace,
+            format!("--selector=job-name={job_name}"),
+            "--output=jsonpath={.items[*].metadata.name}"
+        )
+        .output()?;
 
         Ok(std::str::from_utf8(&output.stdout)?
             .split_whitespace()
@@ -107,9 +139,15 @@ impl Kubectl {
         namespace: &str,
         pod_name: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        self.kubectl()
-            .args(as_ref!["logs", "--namespace", namespace, "-f", pod_name,])
-            .status()?;
+        process::args!(
+            self.kubectl(),
+            "logs",
+            "--namespace",
+            namespace,
+            "-f",
+            pod_name
+        )
+        .status()?;
         Ok(())
     }
 
@@ -118,15 +156,15 @@ impl Kubectl {
         namespace: &str,
         pod_name: &str,
     ) -> Result<(), Box<dyn std::error::Error>> {
-        self.kubectl()
-            .args(as_ref![
-                "describe",
-                "pod",
-                "--namespace",
-                namespace,
-                pod_name,
-            ])
-            .status()?;
+        process::args!(
+            self.kubectl(),
+            "describe",
+            "pod",
+            "--namespace",
+            namespace,
+            pod_name,
+        )
+        .status()?;
         Ok(())
     }
 
@@ -135,17 +173,16 @@ impl Kubectl {
         namespace: &str,
         pod_name: &str,
     ) -> Result<PodStatus, Box<dyn std::error::Error>> {
-        let output = self
-            .kubectl()
-            .args(as_ref![
-                "get",
-                "pod",
-                "--namespace",
-                namespace,
-                pod_name,
-                "--output=json",
-            ])
-            .output()?;
+        let output = process::args!(
+            self.kubectl(),
+            "get",
+            "pod",
+            "--namespace",
+            namespace,
+            pod_name,
+            "--output=json",
+        )
+        .output()?;
 
         let root: PodStatusRoot = serde_json::from_slice(&output.stdout)?;
 
@@ -153,12 +190,29 @@ impl Kubectl {
     }
 }
 
-#[derive(Debug)]
-pub struct JobHandle {
-    pub namespace: String,
-    pub job_name: String,
+#[derive(Debug, Deserialize)]
+pub struct Job {
+    pub status: JobStatus,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct JobStatus {
+    pub active: i32,
+    pub ready: i32,
+}
+
+#[derive(Debug)]
+pub struct ResourceHandle {
+    pub namespace: String,
+    pub name: String,
+}
+
+impl From<CreateJobRoot> for ResourceHandle {
+    fn from(value: CreateJobRoot) -> Self {
+        let CreateOutputMetadata { namespace, name } = value.metadata;
+        Self { namespace, name }
+    }
+}
 #[derive(serde::Deserialize)]
 struct CreateJobRoot {
     metadata: CreateOutputMetadata,
@@ -166,8 +220,8 @@ struct CreateJobRoot {
 
 #[derive(serde::Deserialize)]
 struct CreateOutputMetadata {
-    name: String,
     namespace: String,
+    name: String,
 }
 
 // https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase

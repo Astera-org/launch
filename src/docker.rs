@@ -1,9 +1,5 @@
-use crate::{as_ref, process};
+use crate::process;
 use std::error::Error;
-
-fn docker() -> process::Command {
-    process::Command::new("docker")
-}
 
 fn tmp_json_path() -> std::path::PathBuf {
     use rand::distributions::{Alphanumeric, DistString};
@@ -27,31 +23,42 @@ struct MetadataFile {
     containerimage_digest: String,
 }
 
-pub struct BuildOutput {
-    pub digest: String,
+pub struct BuildArgs<'a> {
+    pub git_commit_hash: &'a str,
+    pub image_tag: &'a str,
 }
 
-pub fn docker_build_and_push(tag: &str) -> Result<BuildOutput, Box<dyn Error>> {
+pub struct BuildOutput {
+    pub image_digest: String,
+}
+
+pub fn build_and_push(args: BuildArgs) -> Result<BuildOutput, Box<dyn Error>> {
     let metadata_filepath = tmp_json_path();
 
-    docker()
-        .args(as_ref![
-            "buildx",
-            "build",
-            ".",
-            "--metadata-file",
-            metadata_filepath,
-            "--tag",
-            tag,
-            "--push",
-        ])
-        .status()?;
+    process::command!(
+        "docker",
+        "buildx",
+        "build",
+        ".",
+        "--metadata-file",
+        metadata_filepath,
+        "--tag",
+        args.image_tag,
+        "--annotation",
+        // https://github.com/opencontainers/image-spec/blob/main/annotations.md
+        format!(
+            "org.opencontainers.image.revision={revision}",
+            revision = args.git_commit_hash
+        ),
+        "--push",
+    )
+    .status()?;
 
     let metadata_string = std::fs::read_to_string(&metadata_filepath)?;
 
     let metadata: MetadataFile = serde_json::from_str(&metadata_string)?;
 
     Ok(BuildOutput {
-        digest: metadata.containerimage_digest,
+        image_digest: metadata.containerimage_digest,
     })
 }

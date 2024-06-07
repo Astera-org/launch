@@ -1,9 +1,12 @@
+use clap::{Args, Parser, Subcommand, ValueEnum};
 use constcat::concat;
 use home::home_dir;
-use launch::{ContainerStatus, PodPhase, PodPhasePendingReason, PodPhaseRunningReason, PodStatus};
-use log::{debug, info, warn};
-
-use clap::{Parser, Subcommand, ValueEnum};
+use launch::{
+    build,
+    execution::{self, ExecutionArgs, ExecutionBackend},
+    git, kubectl, tailscale,
+};
+use log::{debug, warn};
 
 const DATABRICKSCFG_NAME: &str = "databrickscfg";
 const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";
@@ -13,6 +16,28 @@ const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(Debug, Args)]
+struct SubmitArgs {
+    /// The minimum number of GPUs required to execute the work.
+    #[arg(long = "gpus", default_value_t = 0)]
+    gpus: u32,
+
+    #[arg(long = "workers", default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
+    workers: u32,
+
+    #[arg(long = "allow-dirty", default_value_t)]
+    allow_dirty: bool,
+
+    #[arg(long = "allow-unpushed", default_value_t)]
+    allow_unpushed: bool,
+
+    #[arg(long = "databrickscfg-mode", value_enum, default_value_t, help = concat!("Control whether a secret named \"", DATABRICKSCFG_NAME, "\" should be created from the submitting machine and mounted as a file at \"", DATABRICKSCFG_MOUNT, "\" through a volume in the container of the submitted job."))]
+    databrickscfg_mode: DatabricksCfgMode,
+
+    #[arg(required = true, last = true)]
+    command: Vec<String>,
 }
 
 #[derive(Debug, Default, Clone, Copy, ValueEnum)]
@@ -30,17 +55,8 @@ enum DatabricksCfgMode {
 enum Commands {
     /// Submit work to the cluster
     #[command(arg_required_else_help = true)]
-    Submit {
-        /// The minimum number of GPUs required to execute the work.
-        #[arg(long = "gpus", default_value = "0")]
-        gpus: u32,
+    Submit(SubmitArgs),
 
-        #[arg(long = "databrickscfg-mode", value_enum, default_value_t, help = concat!("Control whether a secret named \"", DATABRICKSCFG_NAME, "\" should be created from the submitting machine and mounted as a file at \"", DATABRICKSCFG_MOUNT, "\" through a volume in the container of the submitted job."))]
-        databrickscfg_mode: DatabricksCfgMode,
-
-        #[arg(required = true, last = true)]
-        command: Vec<String>,
-    },
     /// List works submitted to the cluster
     List,
     /// Follow the logs
@@ -52,12 +68,8 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
     let args = Cli::parse();
 
     match args.command {
-        Commands::Submit {
-            gpus,
-            databrickscfg_mode: databrickscfg,
-            command,
-        } => {
-            submit(gpus, databrickscfg, command)?;
+        Commands::Submit(args) => {
+            submit(args)?;
         }
         Commands::List => {
             todo!();
@@ -71,7 +83,7 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn get_user() -> Result<String, Box<dyn std::error::Error>> {
-    let launched_by_user = launch::tailscale_get_user()?;
+    let launched_by_user = tailscale::get_user()?;
     Ok(if launched_by_user.contains('@') {
         // The Tailscale login name refers to a person.
         launched_by_user
@@ -81,11 +93,41 @@ fn get_user() -> Result<String, Box<dyn std::error::Error>> {
     })
 }
 
-fn submit(
-    gpus: u32,
-    databrickscfg_mode: DatabricksCfgMode,
-    command: Vec<String>,
-) -> Result<(), Box<dyn std::error::Error>> {
+struct GitInfo {
+    commit_hash: String,
+    is_clean: bool,
+    is_pushed: bool,
+}
+
+fn git_info() -> Result<GitInfo, Box<dyn std::error::Error>> {
+    let commit_hash = git::commit_hash()?;
+    debug!("git commit hash: {commit_hash}");
+
+    let is_clean = git::is_clean()?;
+    debug!("git is clean: {is_clean}");
+
+    let is_pushed = {
+        git::fetch()?;
+        git::exists_on_any_remote(&commit_hash)?
+    };
+    debug!("git is pushed: {is_pushed}");
+
+    Ok(GitInfo {
+        commit_hash,
+        is_clean,
+        is_pushed,
+    })
+}
+
+fn submit(args: SubmitArgs) -> Result<(), Box<dyn std::error::Error>> {
+    let SubmitArgs {
+        gpus,
+        workers,
+        allow_dirty,
+        allow_unpushed,
+        databrickscfg_mode,
+        command,
+    } = args;
     let image_registry_outside_cluster = "berkeley-docker.taila1eba.ts.net";
     // Configured in `k8s-cluster.yml` under `containerd_registries_mirrors`.
     let image_registry_inside_cluster = "astera-infra.com";
@@ -103,14 +145,30 @@ fn submit(
     let launched_by_hostname = whoami::fallible::hostname()?;
     debug!("launched_by_hostname: {launched_by_hostname:?}");
 
+    let git_info = git_info()?;
+
+    if !allow_dirty && !git_info.is_clean {
+        warn!("Please ensure that you commit all changes so we can reproduce the results. This warning may become an error in the future. You can disable this check by passing `--allow-dirty`.");
+    }
+
+    if !allow_unpushed && !git_info.is_pushed {
+        warn!("Please ensure that your commit is pushed to a remote so we can reproduce the results. This warning may become an error in the future. You can disable this check by passing `--allow-unpushed`.");
+    }
+
     let tag = format!("{image_registry_outside_cluster}/{image_name}:latest");
-    let image_digest = launch::docker_build_and_push(&tag)?.digest;
+    let build_backend = &build::LocalBuildBackend as &dyn build::BuildBackend;
+    let image_digest = build_backend
+        .build(build::BuildArgs {
+            git_commit_hash: &git_info.commit_hash,
+            image_tag: &tag,
+        })?
+        .image_digest;
     debug!("image_digest: {image_digest:?}");
 
     let home_dir = home_dir().ok_or("failed to determine home directory")?;
 
     let kubectl =
-        launch::Kubectl::new("https://berkeley-tailscale-operator.taila1eba.ts.net".to_string());
+        kubectl::Kubectl::new("https://berkeley-tailscale-operator.taila1eba.ts.net".to_string());
 
     // Create databricks secret from file.
     let supply_databrickscfg = if matches!(
@@ -144,13 +202,6 @@ fn submit(
         false
     };
 
-    let generate_name = format!(
-        "launch-{}-",
-        launch::to_rfc_1123_label_lossy(&launched_by_user).ok_or_else(|| format!(
-            "Failed to generated job name from tailscale username {launched_by_user:?}"
-        ))?
-    );
-
     let (volume_mounts, volumes) = if supply_databrickscfg {
         (
             serde_json::json!([
@@ -174,145 +225,35 @@ fn submit(
         (serde_json::json!([]), serde_json::json!([]))
     };
 
-    let job_spec = serde_json::json!({
-        "apiVersion": "batch/v1",
-        "kind": "Job",
-        "metadata": {
-            "namespace": job_namespace,
-            "generateName": generate_name,
-            "annotations": {
-                "launched_by_user": launched_by_user,
-                "launched_by_hostname": launched_by_hostname
-            }
-        },
-        "spec": {
-            "template": {
-                "metadata": {
-                    "annotations": {
-                        "launched_by_user": launched_by_user,
-                        "launched_by_hostname": launched_by_hostname,
-                    }
-                },
-                "spec": {
-                    "containers": [
-                        {
-                            "name": "fluid",
-                            "image": &format!("{image_registry_inside_cluster}/{image_name}@{image_digest}"),
-                            "command": &command,
-                            "env": [
-                                {
-                                    // Suppress warnings from GitPython (used by mlflow)
-                                    // about the git executable not being available.
-                                    "name": "GIT_PYTHON_REFRESH",
-                                    "value": "quiet"
-                                }
-                            ],
-                            "volumeMounts": volume_mounts,
-                            "resources": {
-                                "limits": {
-                                    "nvidia.com/gpu": gpus,
-                                }
-                            }
-                        }
-                    ],
-                    "volumes": volumes,
-                    // Defines whether a container should be restarted until it 1) runs forever, 2)
-                    // runs succesfully, or 3) has run once. We just want our command to run once
-                    // and so we never restart.
-                    "restartPolicy": "Never"
-                }
-            },
-            // How many times to retry running the pod and all its containers, should any of them
-            // fail.
-            "backoffLimit": 0,
-            "ttlSecondsAfterFinished": 86400
-        }
-    }).to_string();
-
-    let job_name = {
-        let job = kubectl.create_job(&job_spec)?;
-        assert_eq!(job_namespace, job.namespace);
-        job.job_name
-    };
-
-    debug!("job_namespace: {:?}", job_namespace);
-    debug!("job_id: {:?}", job_name);
-    info!(
-        "Created job {:?}",
-        format!("{headlamp_base_url}/c/main/jobs/{job_namespace}/{job_name}")
+    let generate_name = format!(
+        "launch-{}-",
+        launch::kubectl::to_rfc_1123_label_lossy(&launched_by_user).ok_or_else(|| format!(
+            "Failed to generate job name from tailscale username {launched_by_user:?}"
+        ))?
     );
 
-    let pod_name = {
-        let mut pods = kubectl.get_pods_for_job(job_namespace, &job_name)?;
-        assert_eq!(pods.len(), 1);
-        pods.pop().unwrap()
-    };
-    debug!("pod_namespace: {:?}", job_namespace);
-    debug!("pod_id: {:?}", pod_name);
-    info!(
-        "Created pod {:?}",
-        format!("{headlamp_base_url}/c/main/pods/{job_namespace}/{pod_name}")
-    );
-
-    info!("Waiting for pod logs to become available...");
-
-    let mut status = kubectl.pod_status(job_namespace, &pod_name)?;
-    debug!("Pod status: {status}");
-
-    fn are_logs_available(status: &PodStatus) -> Option<bool> {
-        match &status.phase {
-            PodPhase::Pending(reason) => match reason.as_ref() {
-                Some(PodPhasePendingReason::ContainerCreating) => None,
-                Some(PodPhasePendingReason::PodScheduled) => None,
-                Some(PodPhasePendingReason::Unschedulable) => Some(false),
-                None => {
-                    if status
-                        .container_statuses
-                        .iter()
-                        .any(ContainerStatus::cannot_pull_image)
-                    {
-                        Some(false)
-                    } else {
-                        None
-                    }
-                }
-            },
-            PodPhase::Running(reason) => match reason.as_ref() {
-                Some(PodPhaseRunningReason::Started) => Some(true),
-                Some(PodPhaseRunningReason::ContainerCreating) => None,
-                Some(PodPhaseRunningReason::PodInitializing) => None,
-                None => Some(true),
-            },
-            PodPhase::Succeeded(_) => Some(true),
-            PodPhase::Failed(_) => Some(false),
-            PodPhase::Unknown(_) => Some(false),
-        }
-    }
-
-    let logs_available = loop {
-        if let Some(logs_available) = are_logs_available(&status) {
-            break logs_available;
-        }
-
-        std::thread::sleep(std::time::Duration::from_secs(2));
-
-        status = {
-            let new_status = kubectl.pod_status(job_namespace, &pod_name)?;
-            if new_status != status {
-                debug!("Pod status: {new_status}");
-            }
-            new_status
-        };
+    let execution_backend: &dyn ExecutionBackend = if workers > 1 {
+        &execution::RayExecutionBackend
+    } else {
+        &execution::KubernetesExecutionBackend
     };
 
-    if !logs_available {
-        return Err(format!(
-            "Pod logs will not become available because it reached status {status}"
-        )
-        .into());
-    }
-
-    kubectl.follow_pod_logs(job_namespace, &pod_name)?;
+    execution_backend.execute(ExecutionArgs {
+        kubectl: &kubectl,
+        headlamp_base_url,
+        job_namespace,
+        generate_name: &generate_name,
+        launched_by_user: &launched_by_user,
+        launched_by_hostname: &launched_by_hostname,
+        image_registry: image_registry_inside_cluster,
+        image_name,
+        image_digest: &image_digest,
+        volume_mounts,
+        volumes,
+        command: &command,
+        workers,
+        gpus,
+    })?;
 
     Ok(())
 }

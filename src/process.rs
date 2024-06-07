@@ -127,8 +127,8 @@ impl ExitStatus {
 
 #[derive(Debug)]
 pub struct Output {
-    command: Command,
-    output: process::Output,
+    pub command: Command,
+    pub output: process::Output,
 }
 
 impl Output {
@@ -175,8 +175,8 @@ impl From<io::Error> for ErrorKind {
 
 #[derive(Debug)]
 pub struct Error {
-    command: Command,
-    kind: ErrorKind,
+    pub command: Command,
+    pub kind: ErrorKind,
 }
 
 impl fmt::Display for Error {
@@ -210,9 +210,23 @@ impl std::error::Error for Error {}
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[macro_export]
-macro_rules! as_ref {
-    ($($e:expr),* $(,)?) => {
-        [$(($e).as_ref(),)*]
+/// Creates a new [`Command`] and supplies the provided arguments, if any, while calling
+/// [`std::convert::AsRef::as_ref`] on each.
+macro_rules! command {
+    ($program:expr, $($arg:expr),* $(,)?) => {
+        $crate::process::args!($crate::process::Command::new($program), $($arg,)*)
+    };
+}
+
+/// Calls [`Command::args`] on the provided [`Command`] while calling [`std::convert::AsRef::as_ref`]
+/// on each argument.
+macro_rules! args {
+    ($program:expr, $($arg:expr),+ $(,)?) => {
+        $program.args([
+            $(($arg).as_ref(),)*
+        ])
     }
 }
+
+pub(crate) use args;
+pub(crate) use command;
