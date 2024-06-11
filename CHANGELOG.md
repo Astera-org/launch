@@ -1,5 +1,36 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+#### [`launch list`](https://github.com/Astera-org/obelisk/issues/229)
+
+The `launch list` command lists regular Jobs and RayJobs running on the kubernetes cluster. The output looks something like this:
+
+```
+┌──────────────────────────────┬─────────────────────┬──────────────────────────────┬───────────────┬─────────────┐
+│ name                         ┆ created (+02:00)    ┆ Job status                   ┆ RayJob status ┆ launched by │
+╞══════════════════════════════╪═════════════════════╪══════════════════════════════╪═══════════════╪═════════════╡
+│ launch-eric-z69kq            ┆ 2024-06-11 02:16:51 ┆ Failed: BackoffLimitExceeded ┆               ┆ eric        │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ launch-eric-fwsls            ┆ 2024-06-10 18:27:01 ┆ Failed: BackoffLimitExceeded ┆               ┆ eric        │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ launch-mick-astera-org-phwfg ┆ 2024-06-10 12:41:18 ┆ Complete                     ┆ Complete      ┆ mick        │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ launch-mick-astera-org-695tw ┆ 2024-06-06 07:47:15 ┆ Failed: BackoffLimitExceeded ┆ Failed        ┆             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ launch-mick-astera-org-mb2s2 ┆ 2024-06-04 18:19:08 ┆                              ┆ Running       ┆             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ launch-mick-astera-org-xlf4s ┆ 2024-06-04 17:48:04 ┆ Failed: BackoffLimitExceeded ┆ Failed        ┆             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ launch-mick-astera-org-pj49m ┆ 2024-05-31 01:31:04 ┆                              ┆ Initializing  ┆             │
+└──────────────────────────────┴─────────────────────┴──────────────────────────────┴───────────────┴─────────────┘
+```
+
+The `Job status` column is only present when a Job with `name` exists, and is derived from its [`status.conditions`](https://github.com/kubernetes/kubernetes/issues/68712) field.
+The `RayJob status` column is only present when a RayJob with `name` exists, and is derived from its [`status.jobDeploymentStatus`](https://docs.ray.io/en/latest/cluster/kubernetes/getting-started/rayjob-quick-start.html#step-8-check-the-rayjob-status) field.
+
 ## [0.1.2] - 2024-06-07
 
 ### Features

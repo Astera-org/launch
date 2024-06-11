@@ -15,6 +15,10 @@ fn rayjob_spec(args: &ExecutionArgs) -> serde_json::Value {
         "metadata": {
             "namespace": args.job_namespace,
             "generateName": args.generate_name,
+            "annotations": {
+                "launched_by_user": args.launched_by_user,
+                "launched_by_hostname": args.launched_by_hostname
+            }
         },
         "spec": {
             "entrypoint": &entrypoint,

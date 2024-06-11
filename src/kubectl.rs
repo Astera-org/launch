@@ -7,7 +7,15 @@ pub use pod_status::*;
 
 mod name;
 pub use name::*;
-use serde::Deserialize;
+
+mod rayjob;
+pub use rayjob::*;
+
+mod job;
+pub use job::*;
+
+mod common;
+pub use common::*;
 
 pub struct Kubectl {
     server: String,
@@ -188,17 +196,34 @@ impl Kubectl {
 
         Ok(root.status)
     }
-}
 
-#[derive(Debug, Deserialize)]
-pub struct Job {
-    pub status: JobStatus,
-}
+    pub fn jobs(&self, namespace: &str) -> Result<Vec<Job>, Box<dyn std::error::Error>> {
+        let output = process::args!(
+            self.kubectl(),
+            "get",
+            "jobs",
+            "--namespace",
+            namespace,
+            "--output=json"
+        )
+        .output()?;
 
-#[derive(Debug, Deserialize)]
-pub struct JobStatus {
-    pub active: i32,
-    pub ready: i32,
+        Ok(serde_json::from_slice::<GetResource<_>>(&output.stdout)?.items)
+    }
+
+    pub fn rayjobs(&self, namespace: &str) -> Result<Vec<RayJob>, Box<dyn std::error::Error>> {
+        let output = process::args!(
+            self.kubectl(),
+            "get",
+            "rayjobs",
+            "--namespace",
+            namespace,
+            "--output=json"
+        )
+        .output()?;
+
+        Ok(serde_json::from_slice::<GetResource<_>>(&output.stdout)?.items)
+    }
 }
 
 #[derive(Debug)]
