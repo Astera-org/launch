@@ -1,9 +1,12 @@
-pub mod build;
+pub(crate) mod build;
 pub(crate) mod docker;
-pub mod execution;
-pub mod git;
-pub mod kubectl;
+pub(crate) mod execution;
+pub(crate) mod git;
+pub(crate) mod kubectl;
 pub(crate) mod process;
-pub mod tailscale;
+pub(crate) mod tailscale;
+pub(crate) mod time_ext;
 
-pub mod time_ext;
+pub mod cli;
+
+pub(crate) type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;

@@ -2,7 +2,6 @@ mod local;
 mod remote;
 
 pub use local::*;
-pub use remote::*;
 
 pub struct BuildArgs<'a> {
     pub git_commit_hash: &'a str,

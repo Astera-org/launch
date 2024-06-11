@@ -159,23 +159,6 @@ impl Kubectl {
         Ok(())
     }
 
-    pub fn describe_pod(
-        &self,
-        namespace: &str,
-        pod_name: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
-        process::args!(
-            self.kubectl(),
-            "describe",
-            "pod",
-            "--namespace",
-            namespace,
-            pod_name,
-        )
-        .status()?;
-        Ok(())
-    }
-
     pub fn pod_status(
         &self,
         namespace: &str,
@@ -283,4 +266,10 @@ pub enum PodStatusPhase {
 #[derive(Debug, serde::Deserialize)]
 pub struct PodStatusRoot {
     pub status: PodStatus,
+}
+
+pub const LAUNCH_NAMESPACE: &str = "launch";
+
+pub fn berkeley() -> Kubectl {
+    Kubectl::new("https://berkeley-tailscale-operator.taila1eba.ts.net".to_string())
 }
