@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## [0.1.3] - 2024-06-12
 
 ### Features
 
@@ -84,5 +84,6 @@ A warning is issued when there are uncommitted changes or if commits have not ye
 
 None
 
-[unreleased]: https://github.com/Astera-org/obelisk/compare/launch-0.1.2...HEAD
+[unreleased]: https://github.com/Astera-org/obelisk/compare/launch-0.1.3...HEAD
+[0.1.3]: https://github.com/Astera-org/obelisk/compare/launch-0.1.2...launch-0.1.3
 [0.1.2]: https://github.com/Astera-org/obelisk/releases/tag/launch-0.1.2
