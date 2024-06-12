@@ -10,11 +10,11 @@ pub fn list() -> Result<()> {
 
     let kubectl = kubectl::berkeley();
 
-    let jobs = kubectl.jobs(kubectl::LAUNCH_NAMESPACE)?;
-    let rayjobs = kubectl.rayjobs(kubectl::LAUNCH_NAMESPACE)?;
+    let jobs = kubectl.jobs(kubectl::NAMESPACE)?;
+    let ray_jobs = kubectl.ray_jobs(kubectl::NAMESPACE)?;
 
     let mut map: HashMap<String, (Option<kubectl::Job>, Option<kubectl::RayJob>)> =
-        HashMap::with_capacity(jobs.len() + rayjobs.len());
+        HashMap::with_capacity(jobs.len() + ray_jobs.len());
 
     for job in jobs {
         assert!(map
@@ -25,46 +25,62 @@ pub fn list() -> Result<()> {
             .is_none());
     }
 
-    for rayjob in rayjobs {
+    for job in ray_jobs {
         assert!(map
-            .entry(rayjob.metadata.name.clone())
+            .entry(job.metadata.name.clone())
             .or_default()
             .1
-            .replace(rayjob)
+            .replace(job)
             .is_none());
     }
 
     struct Row {
         name: String,
-        creation_timestamp: time::OffsetDateTime,
-        launched_by_user: Option<String>,
+        created: time::OffsetDateTime,
+        user: Option<String>,
         job_status: Option<String>,
-        rayjob_status: Option<String>,
+        ray_job_status: Option<String>,
+    }
+
+    fn determine_user<'a>(
+        job: Option<&'a kubectl::Job>,
+        ray_job: Option<&'a kubectl::RayJob>,
+    ) -> Option<&'a str> {
+        let job_meta = job.as_ref().map(|job| &job.metadata);
+        let ray_job_meta = ray_job.as_ref().map(|ray_job| &ray_job.metadata);
+
+        let machine_user_host = Option::or(
+            job_meta.and_then(super::common::launched_by_machine_user),
+            ray_job_meta.and_then(super::common::launched_by_machine_user),
+        );
+
+        let tailscale_user_host = Option::or(
+            job_meta.and_then(super::common::launched_by_tailscale_user),
+            ray_job_meta.and_then(super::common::launched_by_tailscale_user),
+        );
+
+        tailscale_user_host
+            .and_then(|value| value.host().is_some().then_some(value.user()))
+            .or(machine_user_host.map(|value| value.user()))
     }
 
     let rows = {
         let mut rows: Vec<Row> = map
             .into_iter()
-            .map(|(name, (job, rayjob))| Row {
+            .map(|(name, (job, ray_job))| Row {
                 name,
-                creation_timestamp: match (&job, &rayjob) {
-                    (Some(job), Some(rayjob)) => job
+                created: match (&job, &ray_job) {
+                    (Some(job), Some(ray_job)) => job
                         .metadata
                         .creation_timestamp
-                        .min(rayjob.metadata.creation_timestamp),
+                        .min(ray_job.metadata.creation_timestamp),
                     (Some(job), None) => job.metadata.creation_timestamp,
-                    (None, Some(rayjob)) => rayjob.metadata.creation_timestamp,
+                    (None, Some(ray_job)) => ray_job.metadata.creation_timestamp,
                     (None, None) => unreachable!(
-                        "each entry in the hashmap should have at least a job or a rayjob"
+                        "each entry in the hashmap should contain either a Job or a RayJob, or both"
                     ),
                 },
-                launched_by_user: job
-                    .as_ref()
-                    .and_then(|job| job.metadata.annotations.get("launched_by_user"))
-                    .or(rayjob
-                        .as_ref()
-                        .and_then(|rayjob| rayjob.metadata.annotations.get("launched_by_user")))
-                    .cloned(),
+                user: determine_user(job.as_ref(), ray_job.as_ref()).map(str::to_string),
                 job_status: job.map(|job| {
                     job.status
                         .conditions
@@ -75,10 +91,10 @@ pub fn list() -> Result<()> {
                         })
                         .join("\n")
                 }),
-                rayjob_status: rayjob.map(|rayjob| rayjob.status.job_deployment_status),
+                ray_job_status: ray_job.map(|ray_job| ray_job.status.job_deployment_status),
             })
             .collect::<Vec<_>>();
-        rows.sort_by(|a, b| a.creation_timestamp.cmp(&b.creation_timestamp).reverse());
+        rows.sort_by(|a, b| a.created.cmp(&b.created).reverse());
         rows
     };
 
@@ -115,7 +131,7 @@ pub fn list() -> Result<()> {
         ),
         (
             format!("created ({})", format_offset(time_ext::local_offset()?)?),
-            accessor(|row| Ok(Some(format_date(row.creation_timestamp)?))),
+            accessor(|row| Ok(Some(format_date(row.created)?))),
         ),
         (
             "Job status".to_string(),
@@ -123,13 +139,13 @@ pub fn list() -> Result<()> {
         ),
         (
             "RayJob status".to_string(),
-            accessor(|row| Ok(row.rayjob_status.clone())),
+            accessor(|row| Ok(row.ray_job_status.clone())),
         ),
         (
             "launched by".to_string(),
             accessor(|row| {
                 Ok(row
-                    .launched_by_user
+                    .user
                     .as_deref()
                     .and_then(|user| user.split('@').next().map(str::to_string)))
             }),

@@ -8,7 +8,7 @@ fn is_ascii_lowercase_alphanumeric_or_dash(c: char) -> bool {
     matches!(c, 'a'..='z' | '0'..='9' | '-')
 }
 
-fn is_rfc_1123_label(value: &str) -> bool {
+pub fn is_rfc_1123_label(value: &str) -> bool {
     let mut chars = value.chars().peekable();
 
     let Some(first) = chars.next() else {

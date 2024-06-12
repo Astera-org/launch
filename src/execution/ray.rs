@@ -1,4 +1,4 @@
-//! The ray on kubernetes rayjob backend implementation.
+//! The ray on kubernetes ray_job backend implementation.
 
 use log::{debug, info, warn};
 
@@ -6,8 +6,9 @@ use crate::{execution::common, kubectl::ResourceHandle};
 
 use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
 
-fn rayjob_spec(args: &ExecutionArgs) -> serde_json::Value {
+fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let image = args.image();
+    let annotations = args.annotations();
     let entrypoint = args.command.join(" ");
     serde_json::json!({
         "apiVersion": "ray.io/v1",
@@ -15,10 +16,7 @@ fn rayjob_spec(args: &ExecutionArgs) -> serde_json::Value {
         "metadata": {
             "namespace": args.job_namespace,
             "generateName": args.generate_name,
-            "annotations": {
-                "launched_by_user": args.launched_by_user,
-                "launched_by_hostname": args.launched_by_hostname
-            }
+            "annotations": annotations,
         },
         "spec": {
             "entrypoint": &entrypoint,
@@ -99,20 +97,21 @@ impl ExecutionBackend for RayExecutionBackend {
         let headlamp_base_url = args.headlamp_base_url;
 
         let (job_namespace, job_name) = {
-            let job_spec = rayjob_spec(&args);
+            let job_spec = ray_job_spec(&args);
             let ResourceHandle { namespace, name } = args.kubectl.create(&job_spec.to_string())?;
             assert_eq!(args.job_namespace, namespace);
             (namespace, name)
         };
 
-        info!("Created rayjob {:?}.", job_name);
-
-        info!("Waiting for job {:?} to become available...", job_name);
+        info!("Created RayJob {:?}.", job_name);
 
         let deadline = common::Deadline::after(common::JOB_CREATION_TIMEOUT);
 
         loop {
-            debug!("Waiting for job {:?} to exist...", job_name);
+            debug!(
+                "Waiting for submitter Job {:?} to become available...",
+                job_name
+            );
 
             match args.kubectl.try_get_job(&job_namespace, &job_name) {
                 Ok(Some(_)) => {
@@ -134,7 +133,7 @@ impl ExecutionBackend for RayExecutionBackend {
         }
 
         info!(
-            "Created job {:?}.",
+            "Created submitter Job {:?}.",
             format!("{headlamp_base_url}/c/main/jobs/{job_namespace}/{job_name}")
         );
 
@@ -142,14 +141,14 @@ impl ExecutionBackend for RayExecutionBackend {
             let mut pod_names = args.kubectl.get_pods_for_job(&job_namespace, &job_name)?;
             for pod_name in &pod_names {
                 info!(
-                    "Created pod {:?}.",
+                    "Created submitter Pod {:?}.",
                     format!("{headlamp_base_url}/c/main/pods/{job_namespace}/{pod_name}")
                 );
             }
             let pod_name = pod_names.pop().ok_or("No pods created for job")?;
             if pod_names.len() > 1 {
                 warn!(
-                    "Following logs only for pod {:?} and ignoring the others.",
+                    "Following logs only for Pod {:?} and ignoring the others.",
                     format!("{headlamp_base_url}/c/main/pods/{job_namespace}/{pod_name}")
                 );
             }

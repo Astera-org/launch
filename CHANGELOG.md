@@ -31,6 +31,29 @@ The `launch list` command lists regular Jobs and RayJobs running on the kubernet
 The `Job status` column is only present when a Job with `name` exists, and is derived from its [`status.conditions`](https://github.com/kubernetes/kubernetes/issues/68712) field.
 The `RayJob status` column is only present when a RayJob with `name` exists, and is derived from its [`status.jobDeploymentStatus`](https://docs.ray.io/en/latest/cluster/kubernetes/getting-started/rayjob-quick-start.html#step-8-check-the-rayjob-status) field.
 
+#### [Store tailscale user, machine user and machine hostname](https://github.com/Astera-org/obelisk/issues/237)
+
+The Kubernetes resource annotations `launched_by_user` and `launched_by_host` have been removed.
+New annotations have been added:
+
+- `launch.astera.org/launched-by-machine-user` which contains `<username>@<hostname>` of the machine submitting work, if it can be determined.
+- `launch.astera.org/launched-by-tailscale-user` which contains the Tailscale login name, if it can be determined.
+
+The `launch list` command does not respect the old resource annotations, only the new ones.
+
+#### Failure to determine hostname is no longer an error
+
+If the hostname can not be determined, a warning is printed instead.
+
+#### Failure to determine tailscale login name is no longer an error
+
+If the tailscale login name can not be determined, a warning is printed instead.
+
+#### Resource name template is now `{user}-`
+
+The resource name template changed from `launch-{user_with_hostname}-` to `{user}-`.
+If you want, you can specify a prefix with `--name-prefix`. If you do, the resource name template becomes `{prefix}-{user}-`
+
 ## [0.1.2] - 2024-06-07
 
 ### Features

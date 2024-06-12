@@ -8,8 +8,8 @@ pub use pod_status::*;
 mod name;
 pub use name::*;
 
-mod rayjob;
-pub use rayjob::*;
+mod ray_job;
+pub use ray_job::*;
 
 mod job;
 pub use job::*;
@@ -194,7 +194,7 @@ impl Kubectl {
         Ok(serde_json::from_slice::<GetResource<_>>(&output.stdout)?.items)
     }
 
-    pub fn rayjobs(&self, namespace: &str) -> Result<Vec<RayJob>, Box<dyn std::error::Error>> {
+    pub fn ray_jobs(&self, namespace: &str) -> Result<Vec<RayJob>, Box<dyn std::error::Error>> {
         let output = process::args!(
             self.kubectl(),
             "get",
@@ -268,7 +268,12 @@ pub struct PodStatusRoot {
     pub status: PodStatus,
 }
 
-pub const LAUNCH_NAMESPACE: &str = "launch";
+pub const NAMESPACE: &str = "launch";
+
+pub mod annotation {
+    pub const LAUNCHED_BY_MACHINE_USER: &str = "launch.astera.org/launched-by-machine-user";
+    pub const LAUNCHED_BY_TAILSCALE_USER: &str = "launch.astera.org/launched-by-tailscale-user";
+}
 
 pub fn berkeley() -> Kubectl {
     Kubectl::new("https://berkeley-tailscale-operator.taila1eba.ts.net".to_string())

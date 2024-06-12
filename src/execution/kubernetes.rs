@@ -6,24 +6,20 @@ use log::{debug, info};
 
 fn job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let image = args.image();
+    let annotations = args.annotations();
+
     serde_json::json!({
         "apiVersion": "batch/v1",
         "kind": "Job",
         "metadata": {
             "namespace": args.job_namespace,
             "generateName": args.generate_name,
-            "annotations": {
-                "launched_by_user": args.launched_by_user,
-                "launched_by_hostname": args.launched_by_hostname
-            }
+            "annotations": annotations,
         },
         "spec": {
             "template": {
                 "metadata": {
-                    "annotations": {
-                        "launched_by_user": args.launched_by_user,
-                        "launched_by_hostname": args.launched_by_hostname,
-                    }
+                    "annotations": annotations,
                 },
                 "spec": {
                     "containers": [
@@ -75,10 +71,8 @@ impl ExecutionBackend for KubernetesExecutionBackend {
             (namespace, name)
         };
 
-        debug!("job_namespace: {:?}", job_namespace);
-        debug!("job_id: {:?}", job_name);
         info!(
-            "Created job {:?}",
+            "Created Job {:?}",
             format!("{headlamp_base_url}/c/main/jobs/{job_namespace}/{job_name}")
         );
 
@@ -86,14 +80,14 @@ impl ExecutionBackend for KubernetesExecutionBackend {
             let mut pod_names = args.kubectl.get_pods_for_job(&job_namespace, &job_name)?;
             for pod_name in &pod_names {
                 info!(
-                    "Created pod {:?}",
+                    "Created Pod {:?}",
                     format!("{headlamp_base_url}/c/main/pods/{job_namespace}/{pod_name}")
                 );
             }
             let pod_name = pod_names.pop().ok_or("No pods created for job")?;
             if !pod_names.is_empty() {
                 return Err(format!(
-                    "Expected only a single pod for job {job_name:?} but there are multiple. Not sure for which one to follow the logs."
+                    "Expected only a single Pod for Job {job_name:?} but there are multiple. Not sure for which one to follow the logs."
                 )
                 .into());
             }

@@ -55,18 +55,18 @@ struct TailscaleStatusUser {
     login_name: String,
 }
 
-pub fn get_user() -> Result<String, Box<dyn std::error::Error>> {
+pub fn get_login_name() -> Result<String, Box<dyn std::error::Error>> {
     let output = process::args!(tailscale(), "status", "--json").output()?;
 
     let json: TailscaleStatusRoot = serde_json::from_slice(&output.stdout)?;
 
     let Some(users) = json.users else {
-        return Err("Unable to determine tailscale user, are you logged in?".into());
+        return Err("Unable to determine tailscale login name, are you logged in?".into());
     };
 
     Ok(users
         .get(&json.me.user_id.to_string())
-        .expect("failed to obtain tailscale user name")
+        .expect("failed to obtain tailscale login name")
         .login_name
         .clone())
 }

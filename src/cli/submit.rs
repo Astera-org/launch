@@ -1,7 +1,9 @@
 use crate::{
     build,
     execution::{self, ExecutionArgs, ExecutionBackend},
-    git, kubectl, tailscale,
+    git,
+    kubectl::{self, is_rfc_1123_label},
+    user_host::UserHost,
 };
 use clap::{Args, ValueEnum};
 use constcat::concat;
@@ -26,11 +28,26 @@ pub struct SubmitArgs {
     #[arg(long = "allow-unpushed", default_value_t)]
     pub allow_unpushed: bool,
 
+    /// Job name prefix of up to 20 characters, starting with an alphabetic character (a-z) and further consisting of
+    /// alphanumeric characters (a-z, 0-9) optionally separated by dashes (-).
+    #[arg(long = "name-prefix", value_parser = expect_name_prefix)]
+    pub name_prefix: Option<String>,
+
     #[arg(long = "databrickscfg-mode", value_enum, default_value_t, help = concat!("Control whether a secret named \"", DATABRICKSCFG_NAME, "\" should be created from the submitting machine and mounted as a file at \"", DATABRICKSCFG_MOUNT, "\" through a volume in the container of the submitted job."))]
     pub databrickscfg_mode: DatabricksCfgMode,
 
     #[arg(required = true, last = true)]
     pub command: Vec<String>,
+}
+
+fn expect_name_prefix(value: &str) -> Result<String, &'static str> {
+    if !is_rfc_1123_label(value) {
+        return Err("expected an RFC 1123 label matching regex /^[a-z]([a-z0-9]+-)*[a-z0-9]$/");
+    }
+    if value.len() > 20 {
+        return Err("expected 20 characters or less");
+    }
+    Ok(value.to_string())
 }
 
 #[derive(Debug, Default, Clone, Copy, ValueEnum)]
@@ -46,17 +63,6 @@ pub enum DatabricksCfgMode {
 
 use crate::Result;
 
-fn get_user() -> Result<String> {
-    let launched_by_user = tailscale::get_user()?;
-    Ok(if launched_by_user.contains('@') {
-        // The Tailscale login name refers to a person.
-        launched_by_user
-    } else {
-        // The Tailscale login name refers to a machine, use the OS username instead.
-        whoami::username()
-    })
-}
-
 pub fn submit(args: SubmitArgs) -> Result<()> {
     let SubmitArgs {
         gpus,
@@ -64,6 +70,7 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
         allow_dirty,
         allow_unpushed,
         databrickscfg_mode,
+        name_prefix,
         command,
     } = args;
     let image_registry_outside_cluster = "berkeley-docker.taila1eba.ts.net";
@@ -76,11 +83,8 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
         return Err("Please provide the command to run".into());
     }
 
-    let launched_by_user = get_user()?;
-    debug!("launched_by_user: {launched_by_user:?}");
-
-    let launched_by_hostname = whoami::fallible::hostname()?;
-    debug!("launched_by_hostname: {launched_by_hostname:?}");
+    let machine_user_host = super::common::machine_user_host();
+    let tailscale_user_host = super::common::tailscale_user_host();
 
     let git_info = git::info()?;
 
@@ -128,7 +132,7 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
             false
         } else {
             kubectl.recreate_secret_from_file(
-                kubectl::LAUNCH_NAMESPACE,
+                kubectl::NAMESPACE,
                 "databrickscfg",
                 &databrickscfg_path,
             )?;
@@ -161,26 +165,60 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
         (serde_json::json!([]), serde_json::json!([]))
     };
 
-    let generate_name = format!(
-        "launch-{}-",
-        kubectl::to_rfc_1123_label_lossy(&launched_by_user).ok_or_else(|| format!(
-            "Failed to generate job name from tailscale username {launched_by_user:?}"
-        ))?
-    );
+    enum ExecutionBackendKind {
+        Job,
+        RayJob,
+    }
 
-    let execution_backend: &dyn ExecutionBackend = if workers > 1 {
-        &execution::RayExecutionBackend
+    let execution_backend_kind = if workers > 1 {
+        ExecutionBackendKind::RayJob
     } else {
-        &execution::KubernetesExecutionBackend
+        ExecutionBackendKind::Job
+    };
+
+    let generate_name = {
+        let mut name = String::new();
+
+        if let Some(value) = name_prefix.as_deref() {
+            name.push_str(value);
+            name.push('-');
+        }
+
+        let user = kubectl::to_rfc_1123_label_lossy(
+            tailscale_user_host
+                .as_ref()
+                .and_then(|value| value.host().is_some().then_some(value.user()))
+                .unwrap_or(machine_user_host.user()),
+        );
+
+        if let Some(user) = user.as_deref() {
+            name.push_str(user);
+            name.push('-')
+        }
+
+        if name.is_empty() {
+            name.push_str(match execution_backend_kind {
+                ExecutionBackendKind::Job => "job",
+                ExecutionBackendKind::RayJob => "ray-job",
+            });
+            name.push('-');
+        }
+
+        name
+    };
+
+    let execution_backend: &dyn ExecutionBackend = match execution_backend_kind {
+        ExecutionBackendKind::Job => &execution::KubernetesExecutionBackend,
+        ExecutionBackendKind::RayJob => &execution::RayExecutionBackend,
     };
 
     execution_backend.execute(ExecutionArgs {
         kubectl: &kubectl,
         headlamp_base_url,
-        job_namespace: kubectl::LAUNCH_NAMESPACE,
+        job_namespace: kubectl::NAMESPACE,
         generate_name: &generate_name,
-        launched_by_user: &launched_by_user,
-        launched_by_hostname: &launched_by_hostname,
+        machine_user_host: machine_user_host.to_ref(),
+        tailscale_user_host: tailscale_user_host.as_ref().map(UserHost::to_ref),
         image_registry: image_registry_inside_cluster,
         image_name,
         image_digest: &image_digest,
