@@ -9,6 +9,8 @@ use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
 fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let image = args.image();
     let annotations = args.annotations();
+    let volume_mounts = args.volume_mounts();
+    let volumes = args.volumes();
     let entrypoint = args.command.join(" ");
     serde_json::json!({
         "apiVersion": "ray.io/v1",
@@ -72,7 +74,7 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                                                 }
                                             }
                                         },
-                                        "volumeMounts": args.volume_mounts,
+                                        "volumeMounts": volume_mounts,
                                         "resources": {
                                             "limits": {
                                                 "nvidia.com/gpu": args.gpus,
@@ -80,7 +82,7 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                                         }
                                     }
                                 ],
-                                "volumes": args.volumes,
+                                "volumes": volumes,
                             }
                         }
                     }

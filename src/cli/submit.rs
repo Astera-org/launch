@@ -10,9 +10,6 @@ use constcat::concat;
 use home::home_dir;
 use log::{debug, warn};
 
-const DATABRICKSCFG_NAME: &str = "databrickscfg";
-const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";
-
 #[derive(Debug, Args)]
 pub struct SubmitArgs {
     /// The minimum number of GPUs required to execute the work.
@@ -33,7 +30,7 @@ pub struct SubmitArgs {
     #[arg(long = "name-prefix", value_parser = expect_name_prefix)]
     pub name_prefix: Option<String>,
 
-    #[arg(long = "databrickscfg-mode", value_enum, default_value_t, help = concat!("Control whether a secret named \"", DATABRICKSCFG_NAME, "\" should be created from the submitting machine and mounted as a file at \"", DATABRICKSCFG_MOUNT, "\" through a volume in the container of the submitted job."))]
+    #[arg(long = "databrickscfg-mode", value_enum, default_value_t, help = concat!("Control whether a secret should be created from the submitting machine and mounted as a file at \"", execution::DATABRICKSCFG_MOUNT, "\" through a volume in the container of the submitted job."))]
     pub databrickscfg_mode: DatabricksCfgMode,
 
     #[arg(required = true, last = true)]
@@ -50,7 +47,7 @@ fn expect_name_prefix(value: &str) -> Result<String, &'static str> {
     Ok(value.to_string())
 }
 
-#[derive(Debug, Default, Clone, Copy, ValueEnum)]
+#[derive(Debug, Default, Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub enum DatabricksCfgMode {
     /// The databrickscfg secret will be created and attached to the container if possible.
     #[default]
@@ -85,6 +82,12 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
 
     let machine_user_host = super::common::machine_user_host();
     let tailscale_user_host = super::common::tailscale_user_host();
+    let user = kubectl::to_rfc_1123_label_lossy(
+        tailscale_user_host
+            .as_ref()
+            .and_then(|value| value.host().is_some().then_some(value.user()))
+            .unwrap_or(machine_user_host.user()),
+    );
 
     let git_info = git::info()?;
 
@@ -110,60 +113,44 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
 
     let kubectl = kubectl::berkeley();
 
-    // Create databricks secret from file.
-    let supply_databrickscfg = if matches!(
+    let databrickscfg_path = if matches!(
         databrickscfg_mode,
         DatabricksCfgMode::Auto | DatabricksCfgMode::Require
     ) {
-        let databrickscfg_path = home_dir.join(".databrickscfg");
-        if let Err(error) = std::fs::metadata(&databrickscfg_path) {
-            if matches!(databrickscfg_mode, DatabricksCfgMode::Require) {
-                return Err(format!(
-                    "Databricks configuration not found at {databrickscfg_path:?}: {error}. \
+        let path = home_dir.join(".databrickscfg");
+        match std::fs::metadata(&path) {
+            Ok(_) => Some(path),
+            Err(error) => {
+                let error_string = format!(
+                    "Databricks configuration not found at {path:?}: {error}. \
                     Please follow the instructions at https://github.com/Astera-org/obelisk/blob/master/fluid/README.md#logging-to-mlflow."
-                ).into());
-            } else {
-                warn!(
-                    "Databricks configuration not found at {databrickscfg_path:?}: {error}. \
-                    Please follow the instructions at https://github.com/Astera-org/obelisk/blob/master/fluid/README.md#logging-to-mlflow. \
-                    To omit the databricks configuration and avoid this warning, pass `--databrickcfg-mode omit`."
                 );
+                if databrickscfg_mode == DatabricksCfgMode::Require {
+                    return Err(error_string.into());
+                } else {
+                    warn!(
+                        "{error_string} To omit the databricks configuration and avoid this warning, pass `--databrickcfg-mode omit`."
+                    );
+                    None
+                }
             }
-            false
-        } else {
-            kubectl.recreate_secret_from_file(
-                kubectl::NAMESPACE,
-                "databrickscfg",
-                &databrickscfg_path,
-            )?;
-            true
         }
     } else {
-        false
+        None
     };
 
-    let (volume_mounts, volumes) = if supply_databrickscfg {
-        (
-            serde_json::json!([
-                {
-                    "name": DATABRICKSCFG_NAME,
-                    "mountPath": DATABRICKSCFG_MOUNT,
-                    "subPath": ".databrickscfg",
-                    "readOnly": true
-                }
-            ]),
-            serde_json::json!([
-                {
-                    "name": "databrickscfg",
-                    "secret": {
-                        "secretName": DATABRICKSCFG_NAME,
-                    }
-                }
-            ]),
-        )
-    } else {
-        (serde_json::json!([]), serde_json::json!([]))
-    };
+    let databrickscfg_name = databrickscfg_path
+        .map(|path| -> Result<_> {
+            let namespace = kubectl::NAMESPACE;
+            let name = match user.as_deref() {
+                Some(user) => format!("databrickscfg-{user}"),
+                None => "databrickscfg".to_string(),
+            };
+            kubectl.recreate_secret_from_file(kubectl::NAMESPACE, &name, &path)?;
+            debug!("Created Secret https://berkeley-headlamp.taila1eba.ts.net/c/main/secrets/{namespace}/{name}");
+            Ok(name)
+        })
+        .transpose()?;
 
     enum ExecutionBackendKind {
         Job,
@@ -182,14 +169,7 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
         if let Some(value) = name_prefix.as_deref() {
             name.push_str(value);
             name.push('-');
-        }
-
-        let user = kubectl::to_rfc_1123_label_lossy(
-            tailscale_user_host
-                .as_ref()
-                .and_then(|value| value.host().is_some().then_some(value.user()))
-                .unwrap_or(machine_user_host.user()),
-        );
+        };
 
         if let Some(user) = user.as_deref() {
             name.push_str(user);
@@ -222,8 +202,7 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
         image_registry: image_registry_inside_cluster,
         image_name,
         image_digest: &image_digest,
-        volume_mounts,
-        volumes,
+        databrickscfg_name: databrickscfg_name.as_deref(),
         command: &command,
         workers,
         gpus,

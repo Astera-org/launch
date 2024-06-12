@@ -2,12 +2,13 @@
 
 use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
 use crate::{execution::common, kubectl::ResourceHandle};
-use log::{debug, info};
+use log::info;
 
 fn job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let image = args.image();
     let annotations = args.annotations();
-
+    let volume_mounts = args.volume_mounts();
+    let volumes = args.volumes();
     serde_json::json!({
         "apiVersion": "batch/v1",
         "kind": "Job",
@@ -35,7 +36,7 @@ fn job_spec(args: &ExecutionArgs) -> serde_json::Value {
                                     "value": "quiet"
                                 }
                             ],
-                            "volumeMounts": args.volume_mounts,
+                            "volumeMounts": volume_mounts,
                             "resources": {
                                 "limits": {
                                     "nvidia.com/gpu": args.gpus,
@@ -43,7 +44,7 @@ fn job_spec(args: &ExecutionArgs) -> serde_json::Value {
                             }
                         }
                     ],
-                    "volumes": args.volumes,
+                    "volumes": volumes,
                     // Defines whether a container should be restarted until it 1) runs forever, 2)
                     // runs succesfully, or 3) has run once. We just want our command to run once
                     // and so we never restart.

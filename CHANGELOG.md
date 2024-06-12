@@ -54,6 +54,13 @@ If the tailscale login name can not be determined, a warning is printed instead.
 The resource name template changed from `launch-{user_with_hostname}-` to `{user}-`.
 If you want, you can specify a prefix with `--name-prefix`. If you do, the resource name template becomes `{prefix}-{user}-`
 
+### Fixes
+
+#### [Per-user databricks secret](https://github.com/Astera-org/obelisk/issues/227)
+
+The databricks secret resource name is now determined based on the user name `databricks-{name}`.
+This makes it so that jobs of different users can't incorrectly use secrets that another user overwrote.
+
 ## [0.1.2] - 2024-06-07
 
 ### Features

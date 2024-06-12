@@ -22,15 +22,16 @@ pub struct ExecutionArgs<'a> {
     pub image_registry: &'a str,
     pub image_name: &'a str,
     pub image_digest: &'a str,
-    pub volume_mounts: serde_json::Value,
-    pub volumes: serde_json::Value,
+    pub databrickscfg_name: Option<&'a str>,
     pub command: &'a [String],
     pub workers: u32,
     pub gpus: u32,
 }
 
+pub const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";
+
 impl<'a> ExecutionArgs<'a> {
-    pub fn image(&self) -> String {
+    fn image(&self) -> String {
         format!(
             "{registry}/{name}@{digest}",
             registry = self.image_registry,
@@ -39,7 +40,7 @@ impl<'a> ExecutionArgs<'a> {
         )
     }
 
-    pub fn annotations(&self) -> HashMap<&str, String> {
+    fn annotations(&self) -> HashMap<&str, String> {
         let mut map = HashMap::new();
         map.insert(
             kubectl::annotation::LAUNCHED_BY_MACHINE_USER,
@@ -52,6 +53,36 @@ impl<'a> ExecutionArgs<'a> {
             );
         }
         map
+    }
+
+    fn volume_mounts(&self) -> serde_json::Value {
+        if self.databrickscfg_name.is_some() {
+            serde_json::json!([
+                {
+                    "name": "databrickscfg",
+                    "mountPath": DATABRICKSCFG_MOUNT,
+                    "subPath": ".databrickscfg",
+                    "readOnly": true
+                }
+            ])
+        } else {
+            serde_json::json!([])
+        }
+    }
+
+    fn volumes(&self) -> serde_json::Value {
+        if let Some(name) = self.databrickscfg_name {
+            serde_json::json!([
+                {
+                    "name": "databrickscfg",
+                    "secret": {
+                        "secretName": name,
+                    }
+                }
+            ])
+        } else {
+            serde_json::json!([])
+        }
     }
 }
 

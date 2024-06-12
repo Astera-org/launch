@@ -55,7 +55,8 @@ impl Kubectl {
             namespace,
             name,
         )
-        .status()?;
+        .output()?
+        .require_success()?;
 
         process::args!(
             self.kubectl(),
@@ -68,7 +69,8 @@ impl Kubectl {
             namespace,
             name,
         )
-        .status()?;
+        .output()?
+        .require_success()?;
 
         Ok(())
     }
