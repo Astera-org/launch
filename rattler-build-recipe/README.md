@@ -10,6 +10,6 @@ But to run locally:
 
 ```sh
 pixi global install rattler-build
-cd $(git rev-parse --show-toplevel)
-rattler-build build --experimental  --output-dir ./rattler-build-output --recipe ./launch/rattler-build-recipe/recipe.yaml
+cd "$(git rev-parse --show-toplevel)/launch"
+rattler-build build --experimental --output-dir target/rattler-build --recipe rattler-build-recipe/recipe.yaml
 ```

@@ -10,13 +10,12 @@ package:
   version: ${{ version }}
 
 source:
-  path: ../..
+  path: ..
 
 build:
   script:
-    - cd launch
-    - cargo test --release --locked
-    - cargo install --locked --bins --root ${PREFIX} --path .
+    - cargo test --locked --release
+    - cargo install --locked --path launch --bin launch --root "$PREFIX"
 
 requirements:
   build:
