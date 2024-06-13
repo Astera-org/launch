@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+#### Add headlamp link for created RayJobs
+
+When a job with the ray execution backend is created, the [RayJob link](https://berkeley-headlamp.taila1eba.ts.net/c/main/customresources/rayjobs.ray.io/?namespace=launch) is printed instead of just the RayJob name.
+
 ## [0.1.3] - 2024-06-12
 
 ### Features

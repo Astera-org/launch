@@ -103,17 +103,19 @@ impl ExecutionBackend for RayExecutionBackend {
             assert_eq!(args.job_namespace, namespace);
             (namespace, name)
         };
-
-        info!("Created RayJob {:?}.", job_name);
+        debug!(
+            "Created RayJob {:?}.",
+            format!("{headlamp_base_url}/c/main/customresources/rayjobs.ray.io/{job_namespace}/{job_name}")
+        );
 
         let deadline = common::Deadline::after(common::JOB_CREATION_TIMEOUT);
 
-        loop {
-            debug!(
-                "Waiting for submitter Job {:?} to become available...",
-                job_name
-            );
+        info!(
+            "Waiting for submitter Job {:?} to become available...",
+            job_name
+        );
 
+        loop {
             match args.kubectl.try_get_job(&job_namespace, &job_name) {
                 Ok(Some(_)) => {
                     break;
@@ -131,6 +133,11 @@ impl ExecutionBackend for RayExecutionBackend {
                 )
                 .into());
             }
+
+            debug!(
+                "Waiting for submitter Job {:?} to become available...",
+                job_name
+            );
         }
 
         info!(
