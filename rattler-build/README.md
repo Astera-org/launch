@@ -11,5 +11,5 @@ But to run locally:
 ```sh
 pixi global install rattler-build
 cd "$(git rev-parse --show-toplevel)/launch"
-rattler-build build --experimental --output-dir target/rattler-build --recipe rattler-build-recipe/recipe.yaml
+rattler-build build --experimental --output-dir rattler-build/target --recipe rattler-build/recipe.yaml
 ```
