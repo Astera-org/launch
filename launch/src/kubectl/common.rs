@@ -8,6 +8,7 @@ pub struct GetResource<T> {
     pub items: Vec<T>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 /// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#metadata
@@ -38,6 +39,7 @@ pub struct ResourceMetadata {
     pub generation: Option<i32>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct OwnerReference {
     #[serde(rename = "name")]

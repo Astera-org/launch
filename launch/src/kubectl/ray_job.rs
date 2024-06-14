@@ -8,7 +8,7 @@ pub struct RayJob {
     pub metadata: ResourceMetadata,
     pub status: RayJobStatus,
 }
-
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct RayJobStatus {
     #[serde(rename = "jobId")]
@@ -30,6 +30,7 @@ pub struct RayJobStatus {
     pub ray_cluster_status: RayJobStatusRayClusterStatus,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct RayJobStatusRayClusterStatus {
     #[serde(rename = "state", default)]

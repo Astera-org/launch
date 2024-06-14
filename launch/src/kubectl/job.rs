@@ -9,6 +9,7 @@ pub struct Job {
     pub status: JobStatus,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 /// https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/job-v1/#JobStatus
@@ -31,6 +32,7 @@ pub struct JobStatus {
     pub uncounted_terminated_pods: HashMap<String, String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Condition {
