@@ -2,9 +2,8 @@
 
 use log::{debug, info, warn};
 
-use crate::{execution::common, kubectl::ResourceHandle};
-
 use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
+use crate::{execution::common, kubectl::ResourceHandle};
 
 fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let image = args.image();

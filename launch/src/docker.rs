@@ -1,5 +1,6 @@
-use crate::process;
 use std::error::Error;
+
+use crate::process;
 
 fn tmp_json_path() -> std::path::PathBuf {
     use rand::distributions::{Alphanumeric, DistString};

@@ -1,8 +1,9 @@
+use std::{collections::HashMap, fmt};
+
 use serde::{
     de::{self, Deserializer, MapAccess, Visitor},
     Deserialize,
 };
-use std::{collections::HashMap, fmt};
 
 // https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core
 #[derive(Debug, PartialEq)]

@@ -1,3 +1,8 @@
+use clap::{Args, ValueEnum};
+use constcat::concat;
+use home::home_dir;
+use log::{debug, warn};
+
 use crate::{
     build,
     execution::{self, ExecutionArgs, ExecutionBackend},
@@ -5,10 +10,6 @@ use crate::{
     kubectl::{self, is_rfc_1123_label},
     user_host::UserHost,
 };
-use clap::{Args, ValueEnum};
-use constcat::concat;
-use home::home_dir;
-use log::{debug, warn};
 
 #[derive(Debug, Args)]
 pub struct SubmitArgs {

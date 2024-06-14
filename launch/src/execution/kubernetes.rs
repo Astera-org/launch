@@ -1,8 +1,9 @@
 //! The kubernetes job backend implementation.
 
+use log::info;
+
 use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
 use crate::{execution::common, kubectl::ResourceHandle};
-use log::info;
 
 fn job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let image = args.image();

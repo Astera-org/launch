@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use crate::kubectl;
-use crate::{time_ext, Result};
 use itertools::Itertools;
+
+use crate::{kubectl, time_ext, Result};
 
 pub fn list() -> Result<()> {
     use comfy_table::{Attribute, Cell, ContentArrangement, Table};

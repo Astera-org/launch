@@ -1,9 +1,11 @@
 //! Implementation details shared by some execution backends.
 
+use std::{thread, time};
+
+use log::{debug, info};
+
 use super::Result;
 use crate::kubectl;
-use log::{debug, info};
-use std::{thread, time};
 
 pub const JOB_CREATION_TIMEOUT: time::Duration = time::Duration::from_secs(180);
 pub const LOG_AVAILABILITY_TIMEOUT: time::Duration = time::Duration::from_secs(180);

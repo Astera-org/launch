@@ -2,9 +2,10 @@ mod common;
 mod list;
 mod submit;
 
-use crate::Result;
 use clap::{Parser, Subcommand};
 use constcat::concat;
+
+use crate::Result;
 
 #[derive(Debug, Parser)]
 #[command(version, about)]
