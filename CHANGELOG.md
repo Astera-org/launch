@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Fixes
+
+- Increase job ttlSecondsAfterFinished from 1 day to 7 days.
+
 ### Features
 
 #### Add headlamp link for created RayJobs

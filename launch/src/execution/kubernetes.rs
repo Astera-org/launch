@@ -55,7 +55,7 @@ fn job_spec(args: &ExecutionArgs) -> serde_json::Value {
             // How many times to retry running the pod and all its containers, should any of them
             // fail.
             "backoffLimit": 0,
-            "ttlSecondsAfterFinished": 86400
+            "ttlSecondsAfterFinished": 7*24*3600,
         }
     })
 }
