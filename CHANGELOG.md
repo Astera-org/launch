@@ -12,6 +12,17 @@
 
 When a job with the ray execution backend is created, the [RayJob link](https://berkeley-headlamp.taila1eba.ts.net/c/main/customresources/rayjobs.ray.io/?namespace=launch) is printed instead of just the RayJob name.
 
+### Fixes
+
+#### Unschedulable pod detection
+
+Launch now detects unschedulable pods when attempting to follow the logs. The reason why a pod is unschedulable will be
+printed. For example, if you request more gpus than are available in the cluster `launch submit --gpus 9000 -- nvidia-smi`, the following error will be printed:
+
+```
+error: Pod logs will not become available because it reached status pending, condition PodScheduled Unschedulable: 0/8 nodes are available: 8 Insufficient nvidia.com/gpu. preemption: 0/8 nodes are available: 8 No preemption victims found for incoming pod..
+```
+
 ## [0.1.3] - 2024-06-12
 
 ### Features

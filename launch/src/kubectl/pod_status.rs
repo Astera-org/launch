@@ -1,74 +1,71 @@
-use std::{collections::HashMap, fmt};
+use std::fmt;
 
-use serde::{
-    de::{self, Deserializer, MapAccess, Visitor},
-    Deserialize,
-};
+use serde::Deserialize;
 
-// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core
-#[derive(Debug, PartialEq)]
+/// Partially implements [PodStatus](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core)
+#[derive(Debug, Deserialize, Eq, PartialEq)]
 pub struct PodStatus {
-    pub phase: PodPhase,
-    pub message: Option<String>,
+    /// Current service state of pod. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-conditions
+    #[serde(default)]
+    pub conditions: Vec<PodCondition>,
+
+    /// The list has one entry per container in the manifest. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-and-container-status
+    #[serde(default)]
     pub container_statuses: Vec<ContainerStatus>,
+
+    /// A human readable message indicating details about why the pod is in this condition.
+    #[serde(default)]
+    pub message: Option<String>,
+
+    /// A brief CamelCase message indicating details about why the pod is in this state. e.g. 'Evicted'.
+    #[serde(default)]
+    pub reason: Option<String>,
+
+    /// The phase of a Pod is a simple, high-level summary of where the Pod is in its lifecycle. The conditions array,
+    /// the reason and message fields, and the individual container status arrays contain more detail about the pod's
+    /// status. There are five possible phase values: Pending: The pod has been accepted by the Kubernetes system, but
+    /// one or more of the container images has not been created. This includes time before being scheduled as well as
+    /// time spent downloading images over the network, which could take a while. Running: The pod has been bound to a
+    /// node, and all of the containers have been created. At least one container is still running, or is in the process
+    /// of starting or restarting. Succeeded: All containers in the pod have terminated in success, and will not be
+    /// restarted. Failed: All containers in the pod have terminated, and at least one container has terminated in
+    /// failure. The container either exited with non-zero status or was terminated by the system. Unknown: For some
+    /// reason the state of the pod could not be obtained, typically due to an error in communicating with the host of
+    /// the pod. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-phase
+    pub phase: PodPhase,
 }
 
 impl PodStatus {
+    pub fn is_unschedulable(&self) -> bool {
+        self.conditions.iter().any(|condition| {
+            condition.r#type == "PodScheduled"
+                && condition.reason.as_deref() == Some("Unschedulable")
+        })
+    }
+
+    /// Returns `Some(value)` where `value` indicates whether the logs are available if it can be determined from the
+    /// current status, and `None` otherwise.
     pub fn are_logs_available(&self) -> Option<bool> {
-        match &self.phase {
-            PodPhase::Pending(reason) => match reason.as_ref() {
-                Some(PodPhasePendingReason::ContainerCreating) => None,
-                Some(PodPhasePendingReason::PodScheduled) => None,
-                Some(PodPhasePendingReason::Unschedulable) => Some(false),
-                None => {
-                    if self
-                        .container_statuses
-                        .iter()
-                        .any(ContainerStatus::cannot_pull_image)
-                    {
-                        Some(false)
-                    } else {
-                        None
-                    }
-                }
-            },
-            PodPhase::Running(reason) => match reason.as_ref() {
-                Some(PodPhaseRunningReason::Started) => Some(true),
-                Some(PodPhaseRunningReason::ContainerCreating) => None,
-                Some(PodPhaseRunningReason::PodInitializing) => None,
-                None => Some(true),
-            },
-            PodPhase::Succeeded(_) => Some(true),
-            PodPhase::Failed(_) => Some(false),
-            PodPhase::Unknown(_) => Some(false),
+        if self.is_unschedulable() {
+            return Some(false);
+        };
+
+        if self
+            .container_statuses
+            .iter()
+            .any(ContainerStatus::cannot_pull_image)
+        {
+            return Some(false);
+        };
+
+        match (&self.phase, self.reason.as_deref()) {
+            (_, Some("Unschedulable")) | (PodPhase::Unknown, _) => Some(false),
+            (PodPhase::Running, Some("Started"))
+            | (PodPhase::Succeeded, _)
+            | (PodPhase::Failed, _) => Some(true),
+            _ => None,
         }
     }
-}
-
-// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct ContainerStatus {
-    pub name: String,
-    pub image: String,
-    pub state: HashMap<String, ContainerState>,
-}
-
-impl ContainerStatus {
-    pub fn cannot_pull_image(&self) -> bool {
-        let Some(waiting) = self.state.get("waiting") else {
-            return false;
-        };
-        let Some(reason) = &waiting.reason else {
-            return false;
-        };
-        matches!(reason.as_str(), "ErrImagePull" | "ImagePullBackOff")
-    }
-}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct ContainerState {
-    message: Option<String>,
-    reason: Option<String>,
 }
 
 impl fmt::Display for PodStatus {
@@ -78,13 +75,29 @@ impl fmt::Display for PodStatus {
             f.write_str(": ")?;
             f.write_str(message)?;
         }
+
+        for condition in &self.conditions {
+            write!(f, ", condition {}", &condition.r#type)?;
+            if let Some(reason) = condition.reason.as_deref() {
+                write!(f, " {reason}")?;
+            }
+            if let Some(message) = condition.message.as_deref() {
+                write!(f, ": {message}")?;
+            }
+        }
+
         for status in &self.container_statuses {
             let ContainerStatus { name, image, state } = status;
-            let (state_name, ContainerState { message, reason }) = {
-                let mut state_iter = state.iter();
-                let first = state_iter.next().unwrap();
-                assert!(state_iter.next().is_none());
-                first
+            let (state_name, reason, message) = match state {
+                ContainerState::Waiting(state) => {
+                    ("waiting", state.reason.as_deref(), state.message.as_deref())
+                }
+                ContainerState::Running(_) => ("running", None, None),
+                ContainerState::Terminated(state) => (
+                    "terminated",
+                    state.reason.as_deref(),
+                    state.message.as_deref(),
+                ),
             };
             write!(
                 f,
@@ -101,246 +114,140 @@ impl fmt::Display for PodStatus {
     }
 }
 
-// NOTE(mickvangelderen): I'm not too sure this structure is correct, but it works for now. We might
-// want to just deserialize a struct with fields { phase: Phase, reason: Option<String>, message:
-// Option<String> because that will be a bit easier to maintain than the deserialization code here.
-#[derive(Debug, PartialEq, Deserialize)]
+/// Partially implements [PodCondition](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podcondition-v1-core)
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PodCondition {
+    /// Last time we probed the condition.
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub last_probe_time: Option<time::OffsetDateTime>,
+
+    /// Last time the condition transitioned from one status to another.
+    #[serde(default, with = "time::serde::rfc3339::option")]
+    pub last_transition_time: Option<time::OffsetDateTime>,
+
+    /// Human-readable message indicating details about last transition.
+    #[serde(default)]
+    pub message: Option<String>,
+
+    /// Unique, one-word, CamelCase reason for the condition's last transition.
+    #[serde(default)]
+    pub reason: Option<String>,
+
+    /// Status is the status of the condition. Can be True, False, Unknown. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-conditions
+    pub status: String,
+
+    /// Type is the type of the condition. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-conditions
+    pub r#type: String,
+}
+
+// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+pub struct ContainerStatus {
+    /// Name is a DNS_LABEL representing the unique name of the container. Each container in a pod must have a unique name across all container types. Cannot be updated.
+    pub name: String,
+
+    /// Image is the name of container image that the container is running. The container image may not match the image used in the PodSpec, as it may have been resolved by the runtime. More info: https://kubernetes.io/docs/concepts/containers/images.
+    pub image: String,
+
+    pub state: ContainerState,
+}
+
+impl ContainerStatus {
+    pub fn cannot_pull_image(&self) -> bool {
+        let ContainerState::Waiting(state) = &self.state else {
+            return false;
+        };
+        let Some(reason) = &state.reason else {
+            return false;
+        };
+        matches!(reason.as_str(), "ErrImagePull" | "ImagePullBackOff")
+    }
+}
+
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+pub enum ContainerState {
+    #[serde(rename = "waiting")]
+    Waiting(ContainerStateWaiting),
+    #[serde(rename = "running")]
+    Running(ContainerStateRunning),
+    #[serde(rename = "terminated")]
+    Terminated(ContainerStateTerminated),
+}
+
+/// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#containerstatewaiting-v1-core
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+
+pub struct ContainerStateWaiting {
+    /// Message regarding why the container is not yet running.
+    #[serde(default)]
+    message: Option<String>,
+
+    /// (brief) reason the container is not yet running.
+    #[serde(default)]
+    reason: Option<String>,
+}
+
+/// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#containerstaterunning-v1-core
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ContainerStateRunning {
+    /// Time at which the container was last (re-)started
+    #[serde(with = "time::serde::rfc3339")]
+    started_at: time::OffsetDateTime,
+}
+
+/// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#containerstateterminated-v1-core
+#[derive(Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
+
+pub struct ContainerStateTerminated {
+    /// Container's ID in the format '<type>://<container_id>'
+    container_id: String,
+
+    /// Exit status from the last termination of the container
+    #[serde(default)]
+    exit_code: Option<i32>,
+
+    /// Time at which the container last terminated
+    finished_at: time::OffsetDateTime,
+
+    /// Message regarding the last termination of the container
+    #[serde(default)]
+    message: Option<String>,
+
+    /// (brief) reason from the last termination of the container
+    #[serde(default)]
+    reason: Option<String>,
+
+    /// Signal from the last termination of the container
+    #[serde(default)]
+    signal: Option<i32>,
+
+    /// Time at which previous execution of the container started
+    #[serde(with = "time::serde::rfc3339")]
+    started_at: time::OffsetDateTime,
+}
+
+/// Field `phase` of [PodStatus](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core).
+#[derive(Debug, Deserialize, Eq, PartialEq)]
 pub enum PodPhase {
-    Pending(Option<PodPhasePendingReason>),
-    Running(Option<PodPhaseRunningReason>),
-    Succeeded(Option<PodPhaseSucceededReason>),
-    Failed(Option<PodPhaseFailedReason>),
-    Unknown(Option<String>),
+    Pending,
+    Running,
+    Succeeded,
+    Failed,
+    Unknown,
 }
 
 impl fmt::Display for PodPhase {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            PodPhase::Pending(reason) => {
-                f.write_str("pending")?;
-                if let Some(reason) = reason.as_ref() {
-                    write!(f, " ({reason})")?;
-                }
-            }
-            PodPhase::Running(reason) => {
-                f.write_str("running")?;
-                if let Some(reason) = reason.as_ref() {
-                    write!(f, " ({reason})")?;
-                }
-            }
-            PodPhase::Succeeded(reason) => {
-                f.write_str("succeeded")?;
-                if let Some(reason) = reason.as_ref() {
-                    write!(f, " ({reason})")?;
-                }
-            }
-            PodPhase::Failed(reason) => {
-                f.write_str("failed")?;
-                if let Some(reason) = reason.as_ref() {
-                    write!(f, " ({reason})")?;
-                }
-            }
-            PodPhase::Unknown(reason) => {
-                f.write_str("unknown")?;
-                if let Some(reason) = reason.as_ref() {
-                    write!(f, " ({reason})")?;
-                }
-            }
-        }
-        Ok(())
-    }
-}
-
-// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core
-#[derive(Debug, PartialEq, Deserialize)]
-pub enum PodPhasePendingReason {
-    ContainerCreating,
-    PodScheduled,
-    Unschedulable,
-}
-
-impl fmt::Display for PodPhasePendingReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            PodPhasePendingReason::ContainerCreating => f.write_str("container creating"),
-            PodPhasePendingReason::PodScheduled => f.write_str("pod scheduled"),
-            PodPhasePendingReason::Unschedulable => f.write_str("unschedulable"),
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Deserialize)]
-pub enum PodPhaseRunningReason {
-    Started,
-    ContainerCreating,
-    PodInitializing,
-}
-
-impl fmt::Display for PodPhaseRunningReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let str = match self {
-            PodPhaseRunningReason::Started => "started",
-            PodPhaseRunningReason::ContainerCreating => "container creating",
-            PodPhaseRunningReason::PodInitializing => "pod initializing",
-        };
-        f.write_str(str)
-    }
-}
-
-#[derive(Debug, PartialEq, Deserialize)]
-pub enum PodPhaseSucceededReason {
-    Completed,
-}
-
-impl fmt::Display for PodPhaseSucceededReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let str = match self {
-            PodPhaseSucceededReason::Completed => "completed",
-        };
-        f.write_str(str)
-    }
-}
-
-#[derive(Debug, PartialEq, Deserialize)]
-pub enum PodPhaseFailedReason {
-    Error,
-    Evicted,
-    DeadlineExceeded,
-}
-
-impl fmt::Display for PodPhaseFailedReason {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let str = match self {
-            PodPhaseFailedReason::Error => "error",
-            PodPhaseFailedReason::Evicted => "evicted",
-            PodPhaseFailedReason::DeadlineExceeded => "deadline exceeded",
-        };
-        f.write_str(str)
-    }
-}
-
-impl<'de> Deserialize<'de> for PodStatus {
-    fn deserialize<D>(deserializer: D) -> Result<PodStatus, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_map(PodStatusVisitor)
-    }
-}
-
-struct PodStatusVisitor;
-
-impl<'de> Visitor<'de> for PodStatusVisitor {
-    type Value = PodStatus;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("a map with phase and reason fields")
-    }
-
-    fn visit_map<V>(self, mut map: V) -> Result<PodStatus, V::Error>
-    where
-        V: MapAccess<'de>,
-    {
-        let mut phase: Option<&str> = None;
-        let mut reason: Option<&str> = None;
-        let mut message: Option<String> = None;
-        let mut container_statuses: Option<Vec<ContainerStatus>> = None;
-
-        while let Some(key) = map.next_key()? {
-            match key {
-                "phase" => {
-                    if phase.is_some() {
-                        return Err(de::Error::duplicate_field("phase"));
-                    }
-                    phase = Some(map.next_value()?);
-                }
-                "reason" => {
-                    if reason.is_some() {
-                        return Err(de::Error::duplicate_field("reason"));
-                    }
-                    reason = Some(map.next_value()?);
-                }
-                "message" => {
-                    if message.is_some() {
-                        return Err(de::Error::duplicate_field("message"));
-                    }
-                    message = Some(map.next_value()?);
-                }
-                "containerStatuses" => {
-                    if container_statuses.is_some() {
-                        return Err(de::Error::duplicate_field("containerStatuses"));
-                    }
-                    container_statuses = Some(map.next_value()?);
-                }
-                _ => {
-                    let _: serde::de::IgnoredAny = map.next_value()?;
-                }
-            }
-        }
-
-        let phase = phase.ok_or_else(|| de::Error::missing_field("phase"))?;
-
-        let phase = match phase {
-            "Pending" => PodPhase::Pending(
-                reason
-                    .map(|reason| match reason {
-                        "ContainerCreating" => Ok(PodPhasePendingReason::ContainerCreating),
-                        "PodScheduled" => Ok(PodPhasePendingReason::PodScheduled),
-                        "Unschedulable" => Ok(PodPhasePendingReason::Unschedulable),
-                        _ => Err(de::Error::unknown_variant(
-                            reason,
-                            &["ContainerCreating", "PodScheduled", "Unschedulable"],
-                        )),
-                    })
-                    .transpose()?,
-            ),
-            "Running" => PodPhase::Running(
-                reason
-                    .map(|reason| match reason {
-                        "Started" => Ok(PodPhaseRunningReason::Started),
-                        "ContainerCreating" => Ok(PodPhaseRunningReason::ContainerCreating),
-                        "PodInitializing" => Ok(PodPhaseRunningReason::PodInitializing),
-                        _ => Err(de::Error::unknown_variant(
-                            reason,
-                            &["Started", "ContainerCreating", "PodInitializing"],
-                        )),
-                    })
-                    .transpose()?,
-            ),
-            "Succeeded" => PodPhase::Succeeded(
-                reason
-                    .map(|reason| match reason {
-                        "Completed" => Ok(PodPhaseSucceededReason::Completed),
-                        _ => Err(de::Error::unknown_variant(reason, &["Completed"])),
-                    })
-                    .transpose()?,
-            ),
-            "Failed" => PodPhase::Failed(
-                reason
-                    .map(|reason| match reason {
-                        "Error" => Ok(PodPhaseFailedReason::Error),
-                        "Evicted" => Ok(PodPhaseFailedReason::Evicted),
-                        "DeadlineExceeded" => Ok(PodPhaseFailedReason::DeadlineExceeded),
-                        _ => Err(de::Error::unknown_variant(
-                            reason,
-                            &["Error", "Evicted", "DeadlineExceeded"],
-                        )),
-                    })
-                    .transpose()?,
-            ),
-            "Unknown" => PodPhase::Unknown(reason.map(str::to_string)),
-            _ => {
-                return Err(de::Error::unknown_variant(
-                    phase,
-                    &["Pending", "Running", "Succeeded", "Failed", "Unknown"],
-                ))
-            }
-        };
-
-        Ok(PodStatus {
-            phase,
-            message,
-            container_statuses: container_statuses.unwrap_or_default(),
+        f.write_str(match self {
+            PodPhase::Pending => "pending",
+            PodPhase::Running => "running",
+            PodPhase::Succeeded => "succeeded",
+            PodPhase::Failed => "failed",
+            PodPhase::Unknown => "unknown",
         })
     }
 }
