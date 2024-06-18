@@ -45,6 +45,8 @@ pub fn build_and_push(args: BuildArgs) -> Result<BuildOutput, Box<dyn Error>> {
         metadata_filepath,
         "--tag",
         args.image_tag,
+        "--build-arg",
+        format!("COMMIT_HASH={}", args.git_commit_hash),
         "--annotation",
         // https://github.com/opencontainers/image-spec/blob/main/annotations.md
         format!(

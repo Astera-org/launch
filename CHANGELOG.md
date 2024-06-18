@@ -12,6 +12,26 @@
 
 When a job with the ray execution backend is created, the [RayJob link](https://berkeley-headlamp.taila1eba.ts.net/c/main/customresources/rayjobs.ray.io/?namespace=launch) is printed instead of just the RayJob name.
 
+#### Expose commit hash to docker image
+
+Launch now passes a build argument named `COMMIT_HASH` when building the docker image.
+This argument can be accessed in your `Dockerfile` and re-exposed as an environment variable as follows:
+
+```Dockerfile
+ARG COMMIT_HASH
+ENV ASTERA_SOURCE_GIT_COMMIT=$COMMIT_HASH
+```
+
+Your application can then lookup the environment variable `ASTERA_SOURCE_GIT_COMMIT`.
+When using `MLFlow`, it can be used to add the git commit as a tag to the run:
+
+```py
+if (value := os.environ.get('ASTERA_SOURCE_GIT_COMMIT')):
+    client.set_tag(run.info.run_id, "astera.source.git.commit", value)
+```
+
+This allows us to find back the source code that is associated with the run, assuming the code was committed and pushed before issuing the run.
+
 ### Fixes
 
 #### Unschedulable pod detection
