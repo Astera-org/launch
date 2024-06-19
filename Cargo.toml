@@ -1,3 +1,17 @@
 [workspace]
 resolver = "2"
 members = ["launch"]
+
+[profile.release]
+# https://doc.rust-lang.org/cargo/reference/profiles.html#lto
+lto = true
+
+# https://doc.rust-lang.org/cargo/reference/profiles.html#codegen-units
+codegen-units = 1
+
+# https://doc.rust-lang.org/cargo/reference/profiles.html#strip
+strip = "debugsymbols"
+
+# https://docs.rust-embedded.org/book/unsorted/speed-vs-size.html
+opt-level = "s"
+inline-threshold = 225
