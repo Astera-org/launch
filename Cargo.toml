@@ -10,7 +10,7 @@ lto = true
 codegen-units = 1
 
 # https://doc.rust-lang.org/cargo/reference/profiles.html#strip
-strip = "debugsymbols"
+strip = "debuginfo"
 
 # https://docs.rust-embedded.org/book/unsorted/speed-vs-size.html
 opt-level = "s"
