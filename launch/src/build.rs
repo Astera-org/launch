@@ -3,6 +3,8 @@ mod remote;
 
 pub use local::*;
 
+use crate::Result;
+
 pub struct BuildArgs<'a> {
     pub git_commit_hash: &'a str,
     pub image_tag: &'a str,
@@ -15,5 +17,3 @@ pub struct BuildOutput {
 pub trait BuildBackend {
     fn build(&self, args: BuildArgs) -> Result<BuildOutput>;
 }
-
-pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;

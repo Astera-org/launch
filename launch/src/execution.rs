@@ -1,4 +1,4 @@
-pub(crate) mod common;
+mod common;
 mod kubernetes;
 mod ray;
 
@@ -9,7 +9,9 @@ pub use ray::*;
 
 use crate::{
     kubectl::{self, Kubectl},
+    unit::bytes::{self, Bytes},
     user_host::UserHostRef,
+    Result,
 };
 
 pub struct ExecutionArgs<'a> {
@@ -26,6 +28,7 @@ pub struct ExecutionArgs<'a> {
     pub command: &'a [String],
     pub workers: u32,
     pub gpus: u32,
+    pub gpu_mem: Option<Bytes>,
 }
 
 pub const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";
@@ -84,6 +87,50 @@ impl<'a> ExecutionArgs<'a> {
             serde_json::json!([])
         }
     }
+
+    fn resources(&self) -> serde_json::Value {
+        if self.gpus != 0 {
+            serde_json::json!({
+                "limits": {
+                    "nvidia.com/gpu": self.gpus
+                }
+            })
+        } else {
+            serde_json::json!(null)
+        }
+    }
+
+    fn affinity(&self) -> serde_json::Value {
+        let gpu_mem_mib = self
+            .gpu_mem
+            .map(|gpu_mem| gpu_mem.get::<bytes::mebibyte>())
+            .unwrap_or_default();
+        if gpu_mem_mib != 0 {
+            serde_json::json!({
+                "nodeAffinity": {
+                    "requiredDuringSchedulingIgnoredDuringExecution": {
+                        "nodeSelectorTerms": [
+                            {
+                                "matchExpressions": [
+                                    {
+                                        "key": "nvidia.com/gpu.memory",
+                                        // Sub 1 so that a user's request for `>= X` becomes `> (X - 1)`.
+                                        "operator": "Gt",
+                                        // `values` only accepts strings so integers must be converted to strings.
+                                        "values": [
+                                            gpu_mem_mib.saturating_sub(1).to_string()
+                                        ]
+                                    }
+                                ]
+                            }
+                        ]
+                    }
+                }
+            })
+        } else {
+            serde_json::json!(null)
+        }
+    }
 }
 
 pub struct ExecutionOutput {}
@@ -91,5 +138,3 @@ pub struct ExecutionOutput {}
 pub trait ExecutionBackend {
     fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput>;
 }
-
-pub type Result<T, E = Box<dyn std::error::Error>> = std::result::Result<T, E>;

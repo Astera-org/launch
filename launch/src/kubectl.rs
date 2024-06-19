@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::process;
+use crate::{process, Result};
 
 mod pod_status;
 pub use pod_status::*;
@@ -45,7 +45,7 @@ impl Kubectl {
         namespace: &str,
         name: &str,
         path: &Path,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> Result<()> {
         process::args!(
             self.kubectl(),
             "delete",
@@ -77,9 +77,21 @@ impl Kubectl {
 
     /// The input is written to stdin and should be a [YAML or JSON formatted kubernetes
     /// configuration](https://kubernetes.io/docs/tasks/manage-kubernetes-objects/imperative-config/).
-    pub fn create(&self, input: &str) -> Result<ResourceHandle, Box<dyn std::error::Error>> {
+    pub fn create(&self, input: &str) -> Result<ResourceHandle> {
         let output = process::args!(self.kubectl(), "create", "--output=json", "-f", "-")
             .output_with_input(input.as_bytes().to_owned())?;
+
+        // The following should probably be integrated with a custom error type, but useful and good enough for now.
+        if log::log_enabled!(log::Level::Error) && !output.status.success() {
+            if let Ok(stderr) = std::str::from_utf8(&output.stderr) {
+                let path = crate::temp_path::tmp_json_path();
+                if std::fs::write(&path, input).is_ok() {
+                    log::error!("Invalid spec (written to {}): {stderr}", path.display())
+                }
+            }
+        }
+
+        let output = output.require_success()?;
 
         let root: CreateJobRoot = serde_json::from_slice(&output.stdout)?;
 
@@ -89,11 +101,7 @@ impl Kubectl {
         })
     }
 
-    pub fn try_get_job(
-        &self,
-        namespace: &str,
-        job_name: &str,
-    ) -> Result<Option<Job>, Box<dyn std::error::Error>> {
+    pub fn try_get_job(&self, namespace: &str, job_name: &str) -> Result<Option<Job>> {
         let output = process::args!(
             self.kubectl(),
             "get",
@@ -122,11 +130,7 @@ impl Kubectl {
         }
     }
 
-    pub fn get_pods_for_job(
-        &self,
-        namespace: &str,
-        job_name: &str,
-    ) -> Result<Vec<String>, Box<dyn std::error::Error>> {
+    pub fn get_pods_for_job(&self, namespace: &str, job_name: &str) -> Result<Vec<String>> {
         let output = process::args!(
             self.kubectl(),
             "get",
@@ -144,11 +148,7 @@ impl Kubectl {
             .collect())
     }
 
-    pub fn follow_pod_logs(
-        &self,
-        namespace: &str,
-        pod_name: &str,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn follow_pod_logs(&self, namespace: &str, pod_name: &str) -> Result<()> {
         process::args!(
             self.kubectl(),
             "logs",
@@ -161,11 +161,7 @@ impl Kubectl {
         Ok(())
     }
 
-    pub fn pod_status(
-        &self,
-        namespace: &str,
-        pod_name: &str,
-    ) -> Result<PodStatus, Box<dyn std::error::Error>> {
+    pub fn pod_status(&self, namespace: &str, pod_name: &str) -> Result<PodStatus> {
         let output = process::args!(
             self.kubectl(),
             "get",
@@ -182,7 +178,7 @@ impl Kubectl {
         Ok(root.status)
     }
 
-    pub fn jobs(&self, namespace: &str) -> Result<Vec<Job>, Box<dyn std::error::Error>> {
+    pub fn jobs(&self, namespace: &str) -> Result<Vec<Job>> {
         let output = process::args!(
             self.kubectl(),
             "get",
@@ -196,7 +192,7 @@ impl Kubectl {
         Ok(serde_json::from_slice::<GetResource<_>>(&output.stdout)?.items)
     }
 
-    pub fn ray_jobs(&self, namespace: &str) -> Result<Vec<RayJob>, Box<dyn std::error::Error>> {
+    pub fn ray_jobs(&self, namespace: &str) -> Result<Vec<RayJob>> {
         let output = process::args!(
             self.kubectl(),
             "get",

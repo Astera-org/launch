@@ -2,17 +2,13 @@
 
 ## Unreleased
 
-### Fixes
-
-- Increase job ttlSecondsAfterFinished from 1 day to 7 days.
-
 ### Features
 
-#### Add headlamp link for created RayJobs
+#### [Add headlamp link for created RayJobs](https://github.com/Astera-org/obelisk/pull/253)
 
 When a job with the ray execution backend is created, the [RayJob link](https://berkeley-headlamp.taila1eba.ts.net/c/main/customresources/rayjobs.ray.io/?namespace=launch) is printed instead of just the RayJob name.
 
-#### Expose commit hash to docker image
+#### [Expose commit hash to docker image](https://github.com/Astera-org/obelisk/issues/151)
 
 Launch now passes a build argument named `COMMIT_HASH` when building the docker image.
 This argument can be accessed in your `Dockerfile` and re-exposed as an environment variable as follows:
@@ -32,9 +28,18 @@ if (value := os.environ.get('ASTERA_SOURCE_GIT_COMMIT')):
 
 This allows us to find back the source code that is associated with the run, assuming the code was committed and pushed before issuing the run.
 
+#### [Allow specifying the minimum GPU memory](https://github.com/Astera-org/obelisk/issues/245)
+
+The `launch submit` argument `--gpu-mem <GiB>` allows specifying the minimum GPU memory per worker in gibibytes.
+
+GPU data sheets may report a number that is imprecise.
+For example, the NVIDIA RTX A6000 [reports "48 GB" of RAM](https://www.nvidia.com/content/dam/en-zz/Solutions/design-visualization/quadro-product-literature/proviz-print-nvidia-rtx-a6000-datasheet-us-nvidia-1454980-r9-web%20(1).pdf).
+However, our cluster has determined that this GPU has 49140 MiB of RAM, which equals 47.99 GiB and 51.53 GB.
+Because the `--gpu-mem` value is a minimum, specified in GiB, you need to pass `--gpu-mem 47` if you want the job to be able to run on an NVIDIA RTX A6000.
+
 ### Fixes
 
-#### Unschedulable pod detection
+#### [Unschedulable pod detection](https://github.com/Astera-org/obelisk/issues/248)
 
 Launch now detects unschedulable pods when attempting to follow the logs. The reason why a pod is unschedulable will be
 printed. For example, if you request more gpus than are available in the cluster `launch submit --gpus 9000 -- nvidia-smi`, the following error will be printed:
@@ -42,6 +47,10 @@ printed. For example, if you request more gpus than are available in the cluster
 ```
 error: Pod logs will not become available because it reached status pending, condition PodScheduled Unschedulable: 0/8 nodes are available: 8 Insufficient nvidia.com/gpu. preemption: 0/8 nodes are available: 8 No preemption victims found for incoming pod..
 ```
+
+#### [Delete jobs after a week instead of one day](https://github.com/Astera-org/obelisk/pull/265)
+
+Kubernetes Job now have their `ttlSecondsAfterFinished` set 1 week.
 
 ## [0.1.3] - 2024-06-12
 

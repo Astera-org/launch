@@ -8,9 +8,6 @@ use crate::{execution::common, kubectl::ResourceHandle};
 fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let image = args.image();
     let annotations = args.annotations();
-    let volume_mounts = args.volume_mounts();
-    let volumes = args.volumes();
-    let entrypoint = args.command.join(" ");
     serde_json::json!({
         "apiVersion": "ray.io/v1",
         "kind": "RayJob",
@@ -20,7 +17,7 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
             "annotations": annotations,
         },
         "spec": {
-            "entrypoint": &entrypoint,
+            "entrypoint": &args.command.join(" "),
             "entrypointNumGpus": 0,
             "shutdownAfterJobFinishes": true,
             "rayClusterSpec": {
@@ -30,6 +27,9 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                         "dashboard-host": "0.0.0.0"
                     },
                     "template": {
+                        "metadata": {
+                            "annotations": annotations,
+                        },
                         "spec": {
                             "containers": [
                                 {
@@ -61,7 +61,11 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                         "groupName": "small-group",
                         "rayStartParams": {},
                         "template": {
+                            "metadata": {
+                                "annotations": annotations,
+                            },
                             "spec": {
+                                "affinity": args.affinity(),
                                 "containers": [
                                     {
                                         "name": "ray-worker",
@@ -73,15 +77,11 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                                                 }
                                             }
                                         },
-                                        "volumeMounts": volume_mounts,
-                                        "resources": {
-                                            "limits": {
-                                                "nvidia.com/gpu": args.gpus,
-                                            }
-                                        }
+                                        "volumeMounts": args.volume_mounts(),
+                                        "resources": args.resources(),
                                     }
                                 ],
-                                "volumes": volumes,
+                                "volumes": args.volumes(),
                             }
                         }
                     }

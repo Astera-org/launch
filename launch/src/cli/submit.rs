@@ -8,15 +8,27 @@ use crate::{
     execution::{self, ExecutionArgs, ExecutionBackend},
     git,
     kubectl::{self, is_rfc_1123_label},
+    unit::bytes::{self, Bytes},
     user_host::UserHost,
+    Result,
 };
+
+fn gibibyte(s: &str) -> Result<Bytes> {
+    Ok(Bytes::new::<bytes::gibibyte>(s.parse()?).ok_or_else(|| "value too large".to_string())?)
+}
 
 #[derive(Debug, Args)]
 pub struct SubmitArgs {
-    /// The minimum number of GPUs required to execute the work.
-    #[arg(long = "gpus", default_value_t = 0)]
+    /// The minimum number of GPUs per worker.
+    #[arg(long = "gpus", default_value_t)]
     pub gpus: u32,
 
+    /// The minimum GPU RAM memory per worker in gibibyte (GiB, 2^30 bytes).
+    #[arg(long = "gpu-mem", value_parser=gibibyte)]
+    pub gpu_mem: Option<Bytes>,
+
+    /// The number of workers to spawn. If the number of workers is larger than 1, the Ray execution backend will be
+    /// used.
     #[arg(long = "workers", default_value_t = 1, value_parser = clap::value_parser!(u32).range(1..))]
     pub workers: u32,
 
@@ -59,11 +71,10 @@ pub enum DatabricksCfgMode {
     Omit,
 }
 
-use crate::Result;
-
 pub fn submit(args: SubmitArgs) -> Result<()> {
     let SubmitArgs {
         gpus,
+        gpu_mem,
         workers,
         allow_dirty,
         allow_unpushed,
@@ -207,6 +218,7 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
         command: &command,
         workers,
         gpus,
+        gpu_mem,
     })?;
 
     Ok(())

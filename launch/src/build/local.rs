@@ -1,7 +1,7 @@
 use log::debug;
 
-use super::{BuildArgs, BuildBackend, BuildOutput, Result};
-use crate::docker;
+use super::{BuildArgs, BuildBackend, BuildOutput};
+use crate::{docker, Result};
 
 pub struct LocalBuildBackend;
 

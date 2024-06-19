@@ -1,20 +1,4 @@
-use std::error::Error;
-
-use crate::process;
-
-fn tmp_json_path() -> std::path::PathBuf {
-    use rand::distributions::{Alphanumeric, DistString};
-
-    const DIR: &str = "/tmp/";
-    const EXT: &str = ".json";
-    const LEN: usize = 16;
-
-    let mut path = String::with_capacity(DIR.len() + LEN + EXT.len());
-    path.push_str(DIR);
-    Alphanumeric.append_string(&mut rand::thread_rng(), &mut path, LEN);
-    path.push_str(EXT);
-    path.into()
-}
+use crate::{process, Result};
 
 /// Partial implementation of the JSON emitted by the `--metadata-file` option of `docker build`.
 /// See https://docs.docker.com/reference/cli/docker/buildx/build/#metadata-file.
@@ -33,8 +17,8 @@ pub struct BuildOutput {
     pub image_digest: String,
 }
 
-pub fn build_and_push(args: BuildArgs) -> Result<BuildOutput, Box<dyn Error>> {
-    let metadata_filepath = tmp_json_path();
+pub fn build_and_push(args: BuildArgs) -> Result<BuildOutput> {
+    let metadata_filepath = crate::temp_path::tmp_json_path();
 
     process::command!(
         "docker",

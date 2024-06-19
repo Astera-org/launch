@@ -1,10 +1,6 @@
-use std::error::Error;
-
 use log::debug;
 
-use crate::process;
-
-type Result<T, E = Box<dyn Error>> = std::result::Result<T, E>;
+use crate::{process, Result};
 
 /// Returns the commit hash.
 fn commit_hash() -> Result<String> {

@@ -74,6 +74,7 @@ impl Command {
             .0
             .stdin(process::Stdio::piped())
             .stdout(process::Stdio::piped())
+            .stderr(process::Stdio::piped())
             .spawn()
         {
             Ok(child) => child,
