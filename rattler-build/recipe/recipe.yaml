@@ -1,21 +1,24 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/prefix-dev/recipe-format/main/schema.json
 
 context:
-  name: ${{ load_from_file("launch/Cargo.toml").package.name }}
-  version: ${{ load_from_file("launch/Cargo.toml").package.version }}
-  description: ${{ load_from_file("launch/Cargo.toml").package.description }}
+  name: ${{ load_from_file("../launch/Cargo.toml").package.name }}
+  version: ${{ load_from_file("../launch/Cargo.toml").package.version }}
+  description: ${{ load_from_file("../launch/Cargo.toml").package.description }}
 
 package:
   name: ${{ name }}
   version: ${{ version }}
 
 source:
-  path: ..
+  path: ../../
 
 build:
   script:
-    - cargo test --locked --release
-    - cargo install --locked --path launch --bin launch --root "$PREFIX"
+    - $BUILD_PREFIX/bin/cargo install --locked --path launch --bin launch --root "$PREFIX"
+
+tests:
+  - script:
+      - launch --help
 
 requirements:
   build:
