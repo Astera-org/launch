@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
+use time_local::{OffsetDateTimeExt, UtcOffsetExt};
 
-use crate::{kubectl, time_ext, Result};
+use crate::{kubectl, Result};
 
 pub fn list() -> Result<()> {
     use comfy_table::{Attribute, Cell, ContentArrangement, Table};
-    use time_ext::OffsetDateTimeExt;
 
     let kubectl = kubectl::berkeley();
 
@@ -130,7 +130,10 @@ pub fn list() -> Result<()> {
             accessor(|row| Ok(Some(row.name.clone()))),
         ),
         (
-            format!("created ({})", format_offset(time_ext::local_offset()?)?),
+            format!(
+                "created ({})",
+                format_offset(time::UtcOffset::cached_local_offset()?)?
+            ),
             accessor(|row| Ok(Some(format_date(row.created)?))),
         ),
         (
