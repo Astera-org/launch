@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+### Fixes
+
 ## [0.1.4] - 2024-06-19
 
 ### Features
