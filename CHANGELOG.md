@@ -18,10 +18,6 @@ Alternatively, download the appropriate binary for your platform from [GitHub](h
 
 ### Features
 
-#### [Add headlamp link for created RayJobs](https://github.com/Astera-org/obelisk/pull/253)
-
-When a job with the ray execution backend is created, the [RayJob link](https://berkeley-headlamp.taila1eba.ts.net/c/main/customresources/rayjobs.ray.io/?namespace=launch) is printed instead of just the RayJob name.
-
 #### [Expose commit hash to docker image](https://github.com/Astera-org/obelisk/issues/151)
 
 Launch now passes a build argument named `COMMIT_HASH` when building the docker image.
@@ -65,6 +61,11 @@ error: Pod logs will not become available because it reached status pending, con
 #### [Delete jobs after a week instead of one day](https://github.com/Astera-org/obelisk/pull/265)
 
 Kubernetes Job now have their `ttlSecondsAfterFinished` set 1 week.
+
+#### [Hide RayJob created message by default](https://github.com/Astera-org/obelisk/pull/253)
+
+This message was not essential and is now logged at the `debug` level.
+The RayJob name was replaced by a headlamp link to the [RayJob](https://berkeley-headlamp.taila1eba.ts.net/c/main/customresources/rayjobs.ray.io/?namespace=launch).
 
 ## [0.1.3] - 2024-06-12
 
