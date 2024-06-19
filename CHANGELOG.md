@@ -8,6 +8,14 @@
 
 ## [0.1.4] - 2024-06-19
 
+You can install this version through pixi with:
+
+```
+pixi global install --channel https://repo.prefix.dev/obelisk launch==0.1.4
+```
+
+Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/0.1.4) or build it from source.
+
 ### Features
 
 #### [Add headlamp link for created RayJobs](https://github.com/Astera-org/obelisk/pull/253)
