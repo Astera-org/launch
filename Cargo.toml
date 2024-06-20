@@ -12,6 +12,5 @@ codegen-units = 1
 # https://doc.rust-lang.org/cargo/reference/profiles.html#strip
 strip = "debuginfo"
 
-# https://docs.rust-embedded.org/book/unsorted/speed-vs-size.html
+# https://doc.rust-lang.org/cargo/reference/profiles.html#opt-level
 opt-level = "s"
-inline-threshold = 225
