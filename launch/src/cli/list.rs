@@ -1,7 +1,8 @@
 use std::collections::HashMap;
 
 use itertools::Itertools;
-use time_local::{OffsetDateTimeExt, UtcOffsetExt};
+use time::UtcOffset;
+use time_local::UtcOffsetExt;
 
 use crate::{kubectl, Result};
 
@@ -113,7 +114,9 @@ pub fn list() -> Result<()> {
     fn format_date(value: time::OffsetDateTime) -> Result<String> {
         let fd = time::macros::format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
 
-        Ok(value.to_local()?.format(fd)?)
+        Ok(value
+            .to_offset(UtcOffset::cached_local_offset())
+            .format(fd)?)
     }
 
     fn format_offset(value: time::UtcOffset) -> Result<String> {
@@ -132,7 +135,7 @@ pub fn list() -> Result<()> {
         (
             format!(
                 "created ({})",
-                format_offset(time::UtcOffset::cached_local_offset()?)?
+                format_offset(time::UtcOffset::cached_local_offset())?
             ),
             accessor(|row| Ok(Some(format_date(row.created)?))),
         ),

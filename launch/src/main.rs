@@ -1,7 +1,7 @@
 use clap::Parser;
 
 fn main() {
-    time_local::init();
+    time_local::init().unwrap();
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     if let Err(error) = launch::cli::Cli::parse().run() {

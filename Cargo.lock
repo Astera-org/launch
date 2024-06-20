@@ -570,9 +570,9 @@ checksum = "ef927ca75afb808a4d64dd374f00a2adf8d0fcff8e7b184af886c3c87ec4a3f3"
 
 [[package]]
 name = "time-local"
-version = "0.3.1"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7124b17535e1caa1b0097adec4349d2d5fcb979176e24cf6eb85768d0d925431"
+checksum = "cb268571abb2a2758a80d7320f18cac8e3b0c9386858ef183001b4c7cc06ec7b"
 dependencies = [
  "time",
 ]
