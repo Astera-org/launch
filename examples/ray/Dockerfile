@@ -1,4 +1,4 @@
-FROM rayproject/ray
+FROM --platform=linux/amd64  rayproject/ray
 
 WORKDIR /workspace
 
