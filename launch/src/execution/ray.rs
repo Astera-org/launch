@@ -111,7 +111,7 @@ impl ExecutionBackend for RayExecutionBackend {
             )
         );
 
-        let deadline = common::Deadline::after(common::JOB_CREATION_TIMEOUT);
+        let deadline = common::Deadline::after(common::RAY_JOB_CREATION_TIMEOUT);
 
         info!(
             "Waiting for submitter Job {:?} to become available...",

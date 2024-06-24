@@ -7,8 +7,8 @@ use log::{debug, info};
 use super::Result;
 use crate::kubectl;
 
-pub const JOB_CREATION_TIMEOUT: time::Duration = time::Duration::from_secs(180);
-pub const LOG_AVAILABILITY_TIMEOUT: time::Duration = time::Duration::from_secs(180);
+pub const RAY_JOB_CREATION_TIMEOUT: time::Duration = time::Duration::from_secs(600);
+pub const LOG_AVAILABILITY_TIMEOUT: time::Duration = time::Duration::from_secs(600);
 pub const POLLING_INTERVAL: time::Duration = time::Duration::from_secs(2);
 
 pub struct Deadline(time::Instant);

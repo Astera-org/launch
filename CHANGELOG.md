@@ -18,6 +18,12 @@ launch list --context staging
 
 ### Fixes
 
+#### [Increase RayJob and log timeouts to 10m](https://github.com/Astera-org/obelisk/issues/297)
+
+The maximum time we wait for the RayJob submitter pod to become available, and for logs to become available, have changed from 180s to 600s.
+
+Having to wait longer than 10m indicates an issue with our infrastructure that we should address instead.
+
 ## [0.1.4] - 2024-06-19
 
 You can install this version through pixi with:
