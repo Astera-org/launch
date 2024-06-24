@@ -4,6 +4,18 @@
 
 ### Features
 
+#### [Allow selecting cluster](https://github.com/Astera-org/obelisk/issues/292)
+
+You can now select which cluster to use with the `--context` argument.
+Currently it support two values: `staging` and `berkeley`.
+By default `berkeley` is used.
+
+As an example, to list the jobs running on the staging cluster, issue:
+
+```
+launch list --context staging
+```
+
 ### Fixes
 
 ## [0.1.4] - 2024-06-19
