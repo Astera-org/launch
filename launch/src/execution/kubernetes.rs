@@ -58,8 +58,8 @@ pub struct KubernetesExecutionBackend;
 
 impl ExecutionBackend for KubernetesExecutionBackend {
     fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput> {
-        let headlamp_base_url = args.context.headlamp_url();
         let kubectl = args.context.kubectl();
+        let headlamp_url = args.context.headlamp_url();
 
         let (job_namespace, job_name) = {
             let job_spec = job_spec(&args);
@@ -70,7 +70,7 @@ impl ExecutionBackend for KubernetesExecutionBackend {
 
         info!(
             "Created Job {:?}",
-            format!("{headlamp_base_url}/c/main/jobs/{job_namespace}/{job_name}")
+            format!("{headlamp_url}/c/main/jobs/{job_namespace}/{job_name}")
         );
 
         let pod_name = {
@@ -78,7 +78,7 @@ impl ExecutionBackend for KubernetesExecutionBackend {
             for pod_name in &pod_names {
                 info!(
                     "Created Pod {:?}",
-                    format!("{headlamp_base_url}/c/main/pods/{job_namespace}/{pod_name}")
+                    format!("{headlamp_url}/c/main/pods/{job_namespace}/{pod_name}")
                 );
             }
             let pod_name = pod_names.pop().ok_or("No pods created for job")?;

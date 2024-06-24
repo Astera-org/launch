@@ -95,8 +95,8 @@ pub struct RayExecutionBackend;
 
 impl ExecutionBackend for RayExecutionBackend {
     fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput> {
-        let headlamp_base_url = args.context.headlamp_url();
         let kubectl = args.context.kubectl();
+        let headlamp_url = args.context.headlamp_url();
 
         let (job_namespace, job_name) = {
             let job_spec = ray_job_spec(&args);
@@ -106,7 +106,9 @@ impl ExecutionBackend for RayExecutionBackend {
         };
         debug!(
             "Created RayJob {:?}.",
-            format!("{headlamp_base_url}/c/main/customresources/rayjobs.ray.io/{job_namespace}/{job_name}")
+            format!(
+                "{headlamp_url}/c/main/customresources/rayjobs.ray.io/{job_namespace}/{job_name}"
+            )
         );
 
         let deadline = common::Deadline::after(common::JOB_CREATION_TIMEOUT);
@@ -143,7 +145,7 @@ impl ExecutionBackend for RayExecutionBackend {
 
         info!(
             "Created submitter Job {:?}.",
-            format!("{headlamp_base_url}/c/main/jobs/{job_namespace}/{job_name}")
+            format!("{headlamp_url}/c/main/jobs/{job_namespace}/{job_name}")
         );
 
         let pod_name = {
@@ -151,14 +153,14 @@ impl ExecutionBackend for RayExecutionBackend {
             for pod_name in &pod_names {
                 info!(
                     "Created submitter Pod {:?}.",
-                    format!("{headlamp_base_url}/c/main/pods/{job_namespace}/{pod_name}")
+                    format!("{headlamp_url}/c/main/pods/{job_namespace}/{pod_name}")
                 );
             }
             let pod_name = pod_names.pop().ok_or("No pods created for job")?;
             if pod_names.len() > 1 {
                 warn!(
                     "Following logs only for Pod {:?} and ignoring the others.",
-                    format!("{headlamp_base_url}/c/main/pods/{job_namespace}/{pod_name}")
+                    format!("{headlamp_url}/c/main/pods/{job_namespace}/{pod_name}")
                 );
             }
             pod_name
