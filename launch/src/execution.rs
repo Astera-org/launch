@@ -8,15 +8,15 @@ pub use kubernetes::*;
 pub use ray::*;
 
 use crate::{
-    kubectl::{self, Kubectl},
+    cli::ClusterContext,
+    kubectl::{self},
     unit::bytes::{self, Bytes},
     user_host::UserHostRef,
     Result,
 };
 
 pub struct ExecutionArgs<'a> {
-    pub kubectl: &'a Kubectl,
-    pub headlamp_base_url: &'a str,
+    pub context: &'a ClusterContext,
     pub job_namespace: &'a str,
     pub generate_name: &'a str,
     pub machine_user_host: UserHostRef<'a>,

@@ -2,16 +2,56 @@ mod common;
 mod list;
 mod submit;
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use constcat::concat;
 
-use crate::Result;
+use crate::{kubectl::Kubectl, Result};
+
+#[derive(Debug, Default, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum ClusterContext {
+    /// Refers to https://staging-tailscale-operator.taila1eba.ts.net
+    Staging,
+
+    /// Refers to https://berkeley-tailscale-operator.taila1eba.ts.net
+    #[default]
+    Berkeley,
+}
+
+impl ClusterContext {
+    pub const fn cluster_url(&self) -> &'static str {
+        match self {
+            ClusterContext::Staging => "https://staging-tailscale-operator.taila1eba.ts.net",
+            ClusterContext::Berkeley => "https://berkeley-tailscale-operator.taila1eba.ts.net",
+        }
+    }
+
+    pub const fn headlamp_url(&self) -> &'static str {
+        match self {
+            ClusterContext::Staging => "https://staging-headlamp.taila1eba.ts.net",
+            ClusterContext::Berkeley => "https://berkeley-headlamp.taila1eba.ts.net",
+        }
+    }
+
+    pub const fn docker_url(&self) -> &'static str {
+        match self {
+            ClusterContext::Staging => "https://staging-docker.taila1eba.ts.net",
+            ClusterContext::Berkeley => "https://berkeley-docker.taila1eba.ts.net",
+        }
+    }
+
+    pub fn kubectl(&self) -> Kubectl {
+        Kubectl::new(self.cluster_url())
+    }
+}
 
 #[derive(Debug, Parser)]
 #[command(version, about)]
 pub struct Cli {
     #[command(subcommand)]
     command: Commands,
+
+    #[arg(long = "context", global = true, value_enum, default_value_t)]
+    context: ClusterContext,
 }
 
 #[derive(Debug, Subcommand)]
@@ -31,10 +71,10 @@ impl Cli {
     pub fn run(self) -> Result<()> {
         match self.command {
             Commands::Submit(args) => {
-                submit::submit(args)?;
+                submit::submit(&self.context, args)?;
             }
             Commands::List => {
-                list::list()?;
+                list::list(&self.context)?;
             }
             Commands::Logs { .. } => {
                 todo!();

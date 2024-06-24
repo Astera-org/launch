@@ -95,11 +95,12 @@ pub struct RayExecutionBackend;
 
 impl ExecutionBackend for RayExecutionBackend {
     fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput> {
-        let headlamp_base_url = args.headlamp_base_url;
+        let headlamp_base_url = args.context.headlamp_url();
+        let kubectl = args.context.kubectl();
 
         let (job_namespace, job_name) = {
             let job_spec = ray_job_spec(&args);
-            let ResourceHandle { namespace, name } = args.kubectl.create(&job_spec.to_string())?;
+            let ResourceHandle { namespace, name } = kubectl.create(&job_spec.to_string())?;
             assert_eq!(args.job_namespace, namespace);
             (namespace, name)
         };
@@ -116,7 +117,7 @@ impl ExecutionBackend for RayExecutionBackend {
         );
 
         loop {
-            match args.kubectl.try_get_job(&job_namespace, &job_name) {
+            match kubectl.try_get_job(&job_namespace, &job_name) {
                 Ok(Some(_)) => {
                     break;
                 }
@@ -146,7 +147,7 @@ impl ExecutionBackend for RayExecutionBackend {
         );
 
         let pod_name = {
-            let mut pod_names = args.kubectl.get_pods_for_job(&job_namespace, &job_name)?;
+            let mut pod_names = kubectl.get_pods_for_job(&job_namespace, &job_name)?;
             for pod_name in &pod_names {
                 info!(
                     "Created submitter Pod {:?}.",
@@ -163,7 +164,7 @@ impl ExecutionBackend for RayExecutionBackend {
             pod_name
         };
 
-        common::wait_for_and_follow_pod_logs(args.kubectl, &job_namespace, &pod_name)?;
+        common::wait_for_and_follow_pod_logs(&kubectl, &job_namespace, &pod_name)?;
 
         Ok(ExecutionOutput {})
     }

@@ -4,12 +4,13 @@ use itertools::Itertools;
 use time::UtcOffset;
 use time_local::UtcOffsetExt;
 
+use super::ClusterContext;
 use crate::{kubectl, Result};
 
-pub fn list() -> Result<()> {
+pub fn list(context: &ClusterContext) -> Result<()> {
     use comfy_table::{Attribute, Cell, ContentArrangement, Table};
 
-    let kubectl = kubectl::berkeley();
+    let kubectl = context.kubectl();
 
     let jobs = kubectl.jobs(kubectl::NAMESPACE)?;
     let ray_jobs = kubectl.ray_jobs(kubectl::NAMESPACE)?;

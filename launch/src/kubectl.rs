@@ -17,12 +17,12 @@ pub use job::*;
 mod common;
 pub use common::*;
 
-pub struct Kubectl {
-    server: String,
+pub struct Kubectl<'a> {
+    server: &'a str,
 }
 
-impl Kubectl {
-    pub fn new(server: String) -> Self {
+impl<'a> Kubectl<'a> {
+    pub fn new(server: &'a str) -> Self {
         Self { server }
     }
 
@@ -271,8 +271,4 @@ pub const NAMESPACE: &str = "launch";
 pub mod annotation {
     pub const LAUNCHED_BY_MACHINE_USER: &str = "launch.astera.org/launched-by-machine-user";
     pub const LAUNCHED_BY_TAILSCALE_USER: &str = "launch.astera.org/launched-by-tailscale-user";
-}
-
-pub fn berkeley() -> Kubectl {
-    Kubectl::new("https://berkeley-tailscale-operator.taila1eba.ts.net".to_string())
 }

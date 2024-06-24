@@ -3,6 +3,7 @@ use constcat::concat;
 use home::home_dir;
 use log::{debug, warn};
 
+use super::ClusterContext;
 use crate::{
     build,
     execution::{self, ExecutionArgs, ExecutionBackend},
@@ -71,7 +72,7 @@ pub enum DatabricksCfgMode {
     Omit,
 }
 
-pub fn submit(args: SubmitArgs) -> Result<()> {
+pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
     let SubmitArgs {
         gpus,
         gpu_mem,
@@ -82,11 +83,9 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
         name_prefix,
         command,
     } = args;
-    let image_registry_outside_cluster = "berkeley-docker.taila1eba.ts.net";
     // Configured in `k8s-cluster.yml` under `containerd_registries_mirrors`.
     let image_registry_inside_cluster = "astera-infra.com";
     let image_name = "fluid";
-    let headlamp_base_url = "https://berkeley-headlamp.taila1eba.ts.net";
 
     if command.is_empty() {
         return Err("Please provide the command to run".into());
@@ -111,7 +110,10 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
         warn!("Please ensure that your commit is pushed to a remote so we can reproduce the results. This warning may become an error in the future. You can disable this check by passing `--allow-unpushed`.");
     }
 
-    let tag = format!("{image_registry_outside_cluster}/{image_name}:latest");
+    let tag = format!(
+        "{docker_url}/{image_name}:latest",
+        docker_url = context.docker_url()
+    );
     let build_backend = &build::LocalBuildBackend as &dyn build::BuildBackend;
     let image_digest = build_backend
         .build(build::BuildArgs {
@@ -123,7 +125,7 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
 
     let home_dir = home_dir().ok_or("failed to determine home directory")?;
 
-    let kubectl = kubectl::berkeley();
+    let kubectl = context.kubectl();
 
     let databrickscfg_path = if matches!(
         databrickscfg_mode,
@@ -159,7 +161,10 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
                 None => "databrickscfg".to_string(),
             };
             kubectl.recreate_secret_from_file(kubectl::NAMESPACE, &name, &path)?;
-            debug!("Created Secret https://berkeley-headlamp.taila1eba.ts.net/c/main/secrets/{namespace}/{name}");
+            debug!(
+                "Created Secret {headlamp_url}/c/main/secrets/{namespace}/{name}",
+                headlamp_url = context.headlamp_url()
+            );
             Ok(name)
         })
         .transpose()?;
@@ -205,8 +210,7 @@ pub fn submit(args: SubmitArgs) -> Result<()> {
     };
 
     execution_backend.execute(ExecutionArgs {
-        kubectl: &kubectl,
-        headlamp_base_url,
+        context,
         job_namespace: kubectl::NAMESPACE,
         generate_name: &generate_name,
         machine_user_host: machine_user_host.to_ref(),
