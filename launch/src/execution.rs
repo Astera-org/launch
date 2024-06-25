@@ -21,7 +21,6 @@ pub struct ExecutionArgs<'a> {
     pub generate_name: &'a str,
     pub machine_user_host: UserHostRef<'a>,
     pub tailscale_user_host: Option<UserHostRef<'a>>,
-    pub image_registry: &'a str,
     pub image_name: &'a str,
     pub image_digest: &'a str,
     pub databrickscfg_name: Option<&'a str>,
@@ -36,8 +35,8 @@ pub const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";
 impl<'a> ExecutionArgs<'a> {
     fn image(&self) -> String {
         format!(
-            "{registry}/{name}@{digest}",
-            registry = self.image_registry,
+            "{host}/{name}@{digest}",
+            host = self.context.docker_host_inside_cluster(),
             name = self.image_name,
             digest = self.image_digest
         )

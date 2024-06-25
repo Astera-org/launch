@@ -32,11 +32,15 @@ impl ClusterContext {
         }
     }
 
-    pub const fn docker_url(&self) -> &'static str {
+    pub const fn docker_host(&self) -> &'static str {
         match self {
-            ClusterContext::Staging => "https://staging-docker.taila1eba.ts.net",
-            ClusterContext::Berkeley => "https://berkeley-docker.taila1eba.ts.net",
+            ClusterContext::Staging => "staging-docker.taila1eba.ts.net",
+            ClusterContext::Berkeley => "berkeley-docker.taila1eba.ts.net",
         }
+    }
+
+    pub const fn docker_host_inside_cluster(&self) -> &'static str {
+        "astera-infra.com"
     }
 
     pub fn kubectl(&self) -> Kubectl {

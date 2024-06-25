@@ -84,7 +84,6 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         command,
     } = args;
     // Configured in `k8s-cluster.yml` under `containerd_registries_mirrors`.
-    let image_registry_inside_cluster = "astera-infra.com";
     let image_name = "fluid";
 
     if command.is_empty() {
@@ -110,10 +109,7 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         warn!("Please ensure that your commit is pushed to a remote so we can reproduce the results. This warning may become an error in the future. You can disable this check by passing `--allow-unpushed`.");
     }
 
-    let tag = format!(
-        "{docker_url}/{image_name}:latest",
-        docker_url = context.docker_url()
-    );
+    let tag = format!("{host}/{image_name}:latest", host = context.docker_host());
     let build_backend = &build::LocalBuildBackend as &dyn build::BuildBackend;
     let image_digest = build_backend
         .build(build::BuildArgs {
@@ -215,7 +211,6 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         generate_name: &generate_name,
         machine_user_host: machine_user_host.to_ref(),
         tailscale_user_host: tailscale_user_host.as_ref().map(UserHost::to_ref),
-        image_registry: image_registry_inside_cluster,
         image_name,
         image_digest: &image_digest,
         databrickscfg_name: databrickscfg_name.as_deref(),
