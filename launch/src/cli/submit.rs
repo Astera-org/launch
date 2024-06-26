@@ -83,7 +83,7 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         name_prefix,
         command,
     } = args;
-    // Configured in `k8s-cluster.yml` under `containerd_registries_mirrors`.
+
     let image_name = "fluid";
 
     if command.is_empty() {

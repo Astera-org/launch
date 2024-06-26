@@ -40,6 +40,7 @@ impl ClusterContext {
     }
 
     pub const fn docker_host_inside_cluster(&self) -> &'static str {
+        // Configured in `k8s-cluster.yml` under `containerd_registries_mirrors`.
         "astera-infra.com"
     }
 
