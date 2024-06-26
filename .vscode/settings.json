@@ -1,4 +1,5 @@
 {
+    "git.openRepositoryInParentFolders": "always",
     "rust-analyzer.rustfmt.overrideCommand": [
         "rustfmt",
         "+nightly"
