@@ -1,9 +1,12 @@
 //! The kubernetes job backend implementation.
 
-use log::info;
+use log::{info, warn};
 
 use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
-use crate::{execution::common, kubectl::ResourceHandle};
+use crate::{
+    execution::common::{self, PodLogPollError},
+    kubectl::ResourceHandle,
+};
 
 fn job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let annotations = args.annotations();
@@ -91,7 +94,15 @@ impl ExecutionBackend for KubernetesExecutionBackend {
             pod_name
         };
 
-        common::wait_for_and_follow_pod_logs(&kubectl, &job_namespace, &pod_name)?;
+        common::wait_for_and_follow_pod_logs(&kubectl, &job_namespace, &pod_name).inspect_err(
+            |err| {
+                if let PodLogPollError::Unschedulable = err {
+                    if let Err(err) = kubectl.delete_job(&job_name, &job_namespace) {
+                        warn!("Failed to delete Job for unschedulable Pod: {err}")
+                    }
+                }
+            },
+        )?;
 
         Ok(ExecutionOutput {})
     }

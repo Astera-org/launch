@@ -3,7 +3,10 @@
 use log::{debug, info, warn};
 
 use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
-use crate::{execution::common, kubectl::ResourceHandle};
+use crate::{
+    execution::common::{self, PodLogPollError},
+    kubectl::ResourceHandle,
+};
 
 fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let image = args.image();
@@ -166,7 +169,15 @@ impl ExecutionBackend for RayExecutionBackend {
             pod_name
         };
 
-        common::wait_for_and_follow_pod_logs(&kubectl, &job_namespace, &pod_name)?;
+        common::wait_for_and_follow_pod_logs(&kubectl, &job_namespace, &pod_name).inspect_err(
+            |err| {
+                if let PodLogPollError::Unschedulable = err {
+                    if let Err(err) = kubectl.delete_job(&job_name, &job_namespace) {
+                        warn!("Failed to delete Job for unschedulable Pod: {err}")
+                    }
+                }
+            },
+        )?;
 
         Ok(ExecutionOutput {})
     }

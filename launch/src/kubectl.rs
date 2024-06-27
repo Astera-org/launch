@@ -174,7 +174,6 @@ impl<'a> Kubectl<'a> {
         .output()?;
 
         let root: PodStatusRoot = serde_json::from_slice(&output.stdout)?;
-
         Ok(root.status)
     }
 
@@ -204,6 +203,19 @@ impl<'a> Kubectl<'a> {
         .output()?;
 
         Ok(serde_json::from_slice::<GetResource<_>>(&output.stdout)?.items)
+    }
+
+    pub fn delete_job(&self, job_name: &str, namespace: &str) -> Result<()> {
+        let _ = process::args!(
+            self.kubectl(),
+            "--namespace",
+            namespace,
+            "delete",
+            "job",
+            job_name
+        )
+        .output()?;
+        Ok(())
     }
 }
 

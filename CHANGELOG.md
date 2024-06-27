@@ -23,6 +23,10 @@ This eliminates the need to set the platform in the Dockerfile for machines and 
 
 ### Fixes
 
+#### [Delete jobs if pods are unschedulable](https://github.com/Astera-org/obelisk/issues/269)
+
+If a pod is unschedulable for a given job, the job will be deleted upon creation.
+
 #### [Increase RayJob and log timeouts to 10m](https://github.com/Astera-org/obelisk/issues/297)
 
 The maximum time we wait for the RayJob submitter pod to become available, and for logs to become available, have changed from 180s to 600s.
