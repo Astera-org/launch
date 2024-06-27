@@ -16,6 +16,11 @@ As an example, to list the jobs running on the staging cluster, issue:
 launch list --context staging
 ```
 
+#### [Automatically set docker image platform](https://github.com/Astera-org/obelisk/issues/312)
+
+Launch will now pass `--platform linux/amd64` when building docker images because the docker images run on machines with that platform.
+This eliminates the need to set the platform in the Dockerfile for machines and operating systems which default to a different platform.
+
 ### Fixes
 
 #### [Increase RayJob and log timeouts to 10m](https://github.com/Astera-org/obelisk/issues/297)

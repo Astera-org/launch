@@ -1,3 +1,5 @@
+use core::fmt;
+
 use crate::{process, Result};
 
 /// Partial implementation of the JSON emitted by the `--metadata-file` option of `docker build`.
@@ -8,9 +10,29 @@ struct MetadataFile {
     containerimage_digest: String,
 }
 
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum Platform {
+    LinuxAmd64,
+}
+
+impl Platform {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Platform::LinuxAmd64 => "linux/amd64",
+        }
+    }
+}
+
+impl fmt::Display for Platform {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 pub struct BuildArgs<'a> {
     pub git_commit_hash: &'a str,
     pub image_tag: &'a str,
+    pub platform: Platform,
 }
 
 pub struct BuildOutput {
@@ -31,8 +53,10 @@ pub fn build_and_push(args: BuildArgs) -> Result<BuildOutput> {
         args.image_tag,
         "--build-arg",
         format!("COMMIT_HASH={}", args.git_commit_hash),
-        "--annotation",
+        "--platform",
+        args.platform.as_str(),
         // https://github.com/opencontainers/image-spec/blob/main/annotations.md
+        "--annotation",
         format!(
             "org.opencontainers.image.revision={revision}",
             revision = args.git_commit_hash

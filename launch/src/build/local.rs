@@ -15,6 +15,7 @@ fn into_docker_args(args: BuildArgs) -> docker::BuildArgs {
     docker::BuildArgs {
         git_commit_hash,
         image_tag,
+        platform: docker::Platform::LinuxAmd64,
     }
 }
 
