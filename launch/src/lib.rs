@@ -1,3 +1,4 @@
+pub(crate) mod bash_escape;
 pub(crate) mod build;
 pub(crate) mod docker;
 pub(crate) mod execution;

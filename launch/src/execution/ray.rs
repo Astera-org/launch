@@ -4,6 +4,7 @@ use log::{debug, info, warn};
 
 use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
 use crate::{
+    bash_escape,
     execution::common::{self, PodLogPollError},
     kubectl::ResourceHandle,
 };
@@ -11,6 +12,10 @@ use crate::{
 fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let image = args.image();
     let annotations = args.annotations();
+
+    // Ray parses this string with `shlex`. See https://github.com/Astera-org/obelisk/issues/329.
+    let entrypoint = bash_escape::quote_join(args.command.iter().map(String::as_str));
+
     serde_json::json!({
         "apiVersion": "ray.io/v1",
         "kind": "RayJob",
@@ -20,7 +25,7 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
             "annotations": annotations,
         },
         "spec": {
-            "entrypoint": &args.command.join(" "),
+            "entrypoint": entrypoint,
             "entrypointNumGpus": 0,
             "shutdownAfterJobFinishes": true,
             "rayClusterSpec": {
@@ -76,7 +81,9 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                                         "lifecycle": {
                                             "preStop": {
                                                 "exec": {
-                                                    "command": ["/bin/sh", "-c", "ray stop"]
+                                                    // FIXME: Changing this from `["/bin/sh", "-c", "ray stop"]` to `["/bin/bash", "-lc", "--", "ray stop"]` seems to generate warning FailedPreStopHook
+                                                    // Modified to use bash with a login shell.
+                                                    "command": ["/bin/bash", "-lc", "--", "ray stop"]
                                                 }
                                             }
                                         },
@@ -88,7 +95,26 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                             }
                         }
                     }
-                ]
+                ],
+            },
+            "submitterPodTemplate": {
+                "metadata": {
+                    "annotations": annotations,
+                },
+                "spec": {
+                    "restartPolicy": "Never",
+                    "containers": [
+                        {
+                            "name": "ray-job-submitter",
+                            "image": image,
+                            // We have to specify the command because otherwise kuberay overwrites it. Ideally, we would
+                            // omit this and use `args` instead. See https://github.com/ray-project/kuberay/pull/2208.
+                            "command": ["/bin/bash", "-lc", "--"],
+                            // We should not quote this script. The script contains the quoted entrypoint. See https://github.com/Astera-org/obelisk/issues/329.
+                            "args": [format!("ray job submit --address=http://$RAY_DASHBOARD_ADDRESS --submission-id=$RAY_JOB_SUBMISSION_ID -- {entrypoint}")],
+                        }
+                    ]
+                }
             }
         }
     })

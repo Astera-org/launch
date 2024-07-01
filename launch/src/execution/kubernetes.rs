@@ -29,7 +29,8 @@ fn job_spec(args: &ExecutionArgs) -> serde_json::Value {
                         {
                             "name": "main",
                             "image": args.image(),
-                            "command": args.command,
+                            // Using args rather than command keeps the ENTRYPOINT intact.
+                            "args": args.command,
                             "env": [
                                 {
                                     // Suppress warnings from GitPython (used by mlflow)

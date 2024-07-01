@@ -37,6 +37,19 @@ The maximum time we wait for the RayJob submitter pod to become available, and f
 
 Having to wait longer than 10m indicates an issue with our infrastructure that we should address instead.
 
+#### [Fix submit program invocation](https://github.com/Astera-org/obelisk/issues/329)
+
+The arguments `program` and `args` provided to `launch submit -- <program> <args>...` are instantiated as a process and not invoked through a shell by default.
+
+If you need to evaluate something through a shell, use `launch submit -- bash -lc '<script>'`.
+Make the argument to `bash -lc` is quoted such that things evaluated in the desired shell (your machine or the worker).
+For example, `bash -lc "echo $PATH"` echos the path of your machine, while `bash -lc 'echo $PATH'` echos the path of the worker.
+
+For the kubernetes Job execution backend, the docker container's `ENTRYPOINT` is now left intact, rather than being overwritten by `<program> <args>...`.
+
+For the ray RayJob execution backend, the ray job submitter pod still overrides the `ENTRYPOINT` due to a limitation in ray, but now at least executes through a login shell (`bash -lc`) like the head and worker pods.
+This allows placing activation scripts in `.bash_profile`.
+
 ## [0.1.4] - 2024-06-19
 
 You can install this version through pixi with:
