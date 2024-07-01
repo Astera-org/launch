@@ -19,7 +19,6 @@ package-dir = { "" = "src" }
 [tool.pixi.pypi-dependencies]
 ray_pixi = { path = ".", editable = true }
 
-[tool.pixi.tasks]
-
 [tool.pixi.dependencies]
+mlflow-skinny = ">=2.14,<2.15"
 ray-default = ">=2.31.0,<2.32"

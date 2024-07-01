@@ -22,13 +22,15 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
         },
         "spec": {
             "entrypoint": entrypoint,
-            "entrypointNumGpus": 0,
             "shutdownAfterJobFinishes": true,
             "rayClusterSpec": {
                 "headGroupSpec": {
                     "serviceType": "NodePort",
                     "rayStartParams": {
-                        "dashboard-host": "0.0.0.0"
+                        "dashboard-host": "0.0.0.0",
+                        // To prevent workloads with CPU requirements from being scheduled on the head.
+                        // See https://docs.ray.io/en/latest/cluster/kubernetes/user-guides/config.html#num-cpus
+                        "num-cpus": "0",
                     },
                     "template": {
                         "metadata": {
@@ -54,8 +56,11 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                                             "name": "client"
                                         }
                                     ],
+                                    "volumeMounts": args.volume_mounts(),
+                                    "env": args.env(),
                                 }
-                            ]
+                            ],
+                            "volumes": args.volumes(),
                         }
                     }
                 },
@@ -77,14 +82,15 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                                         "lifecycle": {
                                             "preStop": {
                                                 "exec": {
-                                                    // FIXME: Changing this from `["/bin/sh", "-c", "ray stop"]` to `["/bin/bash", "-lc", "--", "ray stop"]` seems to generate warning FailedPreStopHook
-                                                    // Modified to use bash with a login shell.
+                                                    // Modified to use bash with a login shell to use ray from PATH set in .bash_profile.
+                                                    // TODO: this doesn't seem to work reliably. https://github.com/Astera-org/obelisk/issues/341
                                                     "command": ["/bin/bash", "-lc", "--", "ray stop"]
                                                 }
                                             }
                                         },
-                                        "volumeMounts": args.volume_mounts(),
                                         "resources": args.resources(),
+                                        "volumeMounts": args.volume_mounts(),
+                                        "env": args.env(),
                                     }
                                 ],
                                 "volumes": args.volumes(),

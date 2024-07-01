@@ -46,6 +46,11 @@ For the kubernetes Job execution backend, the docker container's `ENTRYPOINT` is
 For the ray RayJob execution backend, the ray job submitter pod still overrides the `ENTRYPOINT` due to a limitation in ray, but now at least executes through a login shell (`bash -lc`) like the head and worker pods.
 This allows placing activation scripts in `.bash_profile`.
 
+### [Support MLFlow in ray job](https://github.com/Astera-org/obelisk/issues/339)
+
+Previously using mlflow with `tracking_uri="databricks"` would fail if the entrypoint happened to run on the Ray head,
+because the head did not have the databricks config mounted.
+
 ## [0.1.4] - 2024-06-19
 
 You can install this version through pixi with:

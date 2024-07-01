@@ -138,6 +138,23 @@ impl<'a> ExecutionArgs<'a> {
             serde_json::json!(null)
         }
     }
+
+    fn env(&self) -> impl serde::Serialize {
+        #[derive(serde::Serialize)]
+        struct SetEnv<'a> {
+            name: &'a str,
+            value: &'a str,
+        }
+
+        impl<'a> SetEnv<'a> {
+            pub fn new(name: &'a str, value: &'a str) -> Self {
+                Self { name, value }
+            }
+        }
+
+        // Suppress warnings from GitPython (used by mlflow) about the git executable not being available.
+        [SetEnv::new("GIT_PYTHON_REFRESH", "QUIET")]
+    }
 }
 
 pub struct ExecutionOutput {}
