@@ -283,4 +283,5 @@ pub const NAMESPACE: &str = "launch";
 pub mod annotation {
     pub const LAUNCHED_BY_MACHINE_USER: &str = "launch.astera.org/launched-by-machine-user";
     pub const LAUNCHED_BY_TAILSCALE_USER: &str = "launch.astera.org/launched-by-tailscale-user";
+    pub const VERSION: &str = "launch.astera.org/version";
 }

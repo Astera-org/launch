@@ -21,6 +21,10 @@ launch list --context staging
 Launch will now pass `--platform linux/amd64` when building docker images because the docker images run on machines with that platform.
 This eliminates the need to set the platform in the Dockerfile for machines and operating systems which default to a different platform.
 
+#### [Annotate created resources with launch version](https://github.com/Astera-org/obelisk/issues/293)
+
+Launch will now annotate kubernetes resources that it creates with its version under the label `launch.astera.org/version`.
+
 ### Fixes
 
 #### [Delete jobs if pods are unschedulable](https://github.com/Astera-org/obelisk/issues/269)

@@ -2,8 +2,6 @@ mod common;
 mod kubernetes;
 mod ray;
 
-use std::collections::HashMap;
-
 pub use kubernetes::*;
 pub use ray::*;
 
@@ -42,22 +40,32 @@ impl<'a> ExecutionArgs<'a> {
         )
     }
 
-    fn annotations(&self) -> HashMap<&str, String> {
-        let mut map = HashMap::new();
-        map.insert(
-            kubectl::annotation::LAUNCHED_BY_MACHINE_USER,
-            self.machine_user_host.to_string(),
-        );
-        if let Some(ref value) = self.tailscale_user_host {
-            map.insert(
-                kubectl::annotation::LAUNCHED_BY_TAILSCALE_USER,
-                value.to_string(),
-            );
-        }
-        map
+    fn annotations(&self) -> impl serde::Serialize {
+        use std::borrow::Cow;
+
+        use kubectl::annotation;
+
+        [
+            (
+                annotation::VERSION,
+                Cow::Borrowed(env!("CARGO_PKG_VERSION")),
+            ),
+            (
+                annotation::LAUNCHED_BY_MACHINE_USER,
+                Cow::Owned(self.machine_user_host.to_string()),
+            ),
+        ]
+        .into_iter()
+        .chain(self.tailscale_user_host.as_ref().map(|value| {
+            (
+                annotation::LAUNCHED_BY_TAILSCALE_USER,
+                Cow::Owned(value.to_string()),
+            )
+        }))
+        .collect::<std::collections::HashMap<_, _>>()
     }
 
-    fn volume_mounts(&self) -> serde_json::Value {
+    fn volume_mounts(&self) -> impl serde::Serialize {
         if self.databrickscfg_name.is_some() {
             serde_json::json!([
                 {
@@ -72,7 +80,7 @@ impl<'a> ExecutionArgs<'a> {
         }
     }
 
-    fn volumes(&self) -> serde_json::Value {
+    fn volumes(&self) -> impl serde::Serialize {
         if let Some(name) = self.databrickscfg_name {
             serde_json::json!([
                 {
@@ -87,7 +95,7 @@ impl<'a> ExecutionArgs<'a> {
         }
     }
 
-    fn resources(&self) -> serde_json::Value {
+    fn resources(&self) -> impl serde::Serialize {
         if self.gpus != 0 {
             serde_json::json!({
                 "limits": {
@@ -99,7 +107,7 @@ impl<'a> ExecutionArgs<'a> {
         }
     }
 
-    fn affinity(&self) -> serde_json::Value {
+    fn affinity(&self) -> impl serde::Serialize {
         let gpu_mem_mib = self
             .gpu_mem
             .map(|gpu_mem| gpu_mem.get::<bytes::mebibyte>())
