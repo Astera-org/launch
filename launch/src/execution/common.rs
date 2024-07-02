@@ -2,7 +2,7 @@
 
 use std::{error::Error, fmt, thread, time};
 
-use log::{debug, info};
+use log::{debug, info, warn};
 
 use super::Result;
 use crate::kubectl::{self, PodStatus};
@@ -33,7 +33,6 @@ impl Deadline {
 
 #[derive(Debug)]
 pub enum PodLogPollError {
-    Unschedulable,
     BadStatus(Box<PodStatus>),
     Timeout,
     Other(Box<dyn std::error::Error + Send + Sync>),
@@ -42,7 +41,6 @@ pub enum PodLogPollError {
 impl fmt::Display for PodLogPollError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            PodLogPollError::Unschedulable => write!(f, "Pod is unschedulable"),
             PodLogPollError::BadStatus(status) => write!(
                 f,
                 "Pod logs will not become available because it reached status {status}"
@@ -90,7 +88,8 @@ pub fn wait_for_and_follow_pod_logs(
             if logs_available {
                 break;
             } else if status.is_unschedulable() {
-                return Err(PodLogPollError::Unschedulable);
+                warn!("The Pod is unschedulable which means that the Pod is queued. The Pod will start once the cluster has sufficient capacity. Please ensure that your Pod does not request more resources than the cluster can possibly offer.");
+                return Ok(());
             } else {
                 return Err(PodLogPollError::BadStatus(status.into()));
             }

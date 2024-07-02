@@ -1,10 +1,10 @@
 //! The kubernetes job backend implementation.
 
-use log::{info, warn};
+use log::info;
 
 use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
 use crate::{
-    execution::common::{self, PodLogPollError},
+    execution::common::{self},
     kubectl::ResourceHandle,
 };
 
@@ -95,15 +95,7 @@ impl ExecutionBackend for KubernetesExecutionBackend {
             pod_name
         };
 
-        common::wait_for_and_follow_pod_logs(&kubectl, &job_namespace, &pod_name).inspect_err(
-            |err| {
-                if let PodLogPollError::Unschedulable = err {
-                    if let Err(err) = kubectl.delete_job(&job_name, &job_namespace) {
-                        warn!("Failed to delete Job for unschedulable Pod: {err}")
-                    }
-                }
-            },
-        )?;
+        common::wait_for_and_follow_pod_logs(&kubectl, &job_namespace, &pod_name)?;
 
         Ok(ExecutionOutput {})
     }
