@@ -60,9 +60,7 @@ impl PodStatus {
 
         match (&self.phase, self.reason.as_deref()) {
             (_, Some("Unschedulable")) | (PodPhase::Unknown, _) => Some(false),
-            (PodPhase::Running, Some("Started"))
-            | (PodPhase::Succeeded, _)
-            | (PodPhase::Failed, _) => Some(true),
+            (PodPhase::Running, _) | (PodPhase::Succeeded, _) | (PodPhase::Failed, _) => Some(true),
             _ => None,
         }
     }
