@@ -1967,7 +1967,7 @@ packages:
   name: ray-pixi
   version: 0.1.0
   path: .
-  sha256: 0fbf10d041dd4efa27ab11874165456a0bff2a634efd6538722751b18b5414e5
+  sha256: 2bf939d681547df1ab4d8627f60ec5e499286b5c0da350f971a656f804e99925
   requires_python: '>=3.11'
   editable: true
 - kind: conda
