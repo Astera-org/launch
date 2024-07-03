@@ -50,7 +50,7 @@ impl ClusterContext {
 }
 
 #[derive(Debug, Parser)]
-#[command(version, about)]
+#[command(version = crate::version::VERSION, about)]
 pub struct Cli {
     #[command(subcommand)]
     command: Commands,

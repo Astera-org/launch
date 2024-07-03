@@ -14,7 +14,7 @@ source:
 
 build:
   script:
-    - $BUILD_PREFIX/bin/cargo install --locked --path launch --bin launch --root "$PREFIX"
+    - LAUNCH_RELEASE=1 $BUILD_PREFIX/bin/cargo install --locked --path launch --bin launch --root "$PREFIX"
 
 tests:
   - script:

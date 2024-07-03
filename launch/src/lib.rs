@@ -9,6 +9,7 @@ pub(crate) mod tailscale;
 pub(crate) mod temp_path;
 pub(crate) mod unit;
 pub(crate) mod user_host;
+pub(crate) mod version;
 
 pub mod cli;
 

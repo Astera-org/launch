@@ -46,10 +46,7 @@ impl<'a> ExecutionArgs<'a> {
         use kubectl::annotation;
 
         [
-            (
-                annotation::VERSION,
-                Cow::Borrowed(env!("CARGO_PKG_VERSION")),
-            ),
+            (annotation::VERSION, Cow::Borrowed(crate::version::VERSION)),
             (
                 annotation::LAUNCHED_BY_MACHINE_USER,
                 Cow::Owned(self.machine_user_host.to_string()),
