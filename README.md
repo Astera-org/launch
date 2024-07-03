@@ -83,6 +83,29 @@ Please use the help text from the `launch` application, it should be very inform
 The [`examples/`](./examples/) folder contains some standalone projects which can be used to try out `launch`.
 View the `README.md` inside an example project for more information.
 
+## Development
+
+Install the stable and nightly Rust toolchains through [rustup](https://rustup.rs/) with:
+
+```
+# headless install of rustup and stable toolchain
+curl https://sh.rustup.rs -sSf | sh -s -- -y
+
+# source changes to $PATH into your current shell
+. "$HOME/.cargo/env"
+
+# install nightly toolchain
+rustup install nightly
+```
+
+Now you should be able to build and run `launch`:
+
+```
+cargo run --bin launch
+```
+
+Format, lint and test your code by running `./ci.sh`.
+
 ## Debugging
 
 There are many steps involved in running work on the cluster.
