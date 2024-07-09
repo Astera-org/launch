@@ -1,6 +1,14 @@
 # Changelog
 
-## Unreleased
+## [0.1.5] - 2024-07-09
+
+You can install this version through pixi with:
+
+```
+pixi global install --channel https://repo.prefix.dev/obelisk launch==0.1.5
+```
+
+Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/0.1.5) or build it from source.
 
 ### Features
 
@@ -46,10 +54,9 @@ For the kubernetes Job execution backend, the docker container's `ENTRYPOINT` is
 For the ray RayJob execution backend, the ray job submitter pod still overrides the `ENTRYPOINT` due to a limitation in ray, but now at least executes through a login shell (`bash -lc`) like the head and worker pods.
 This allows placing activation scripts in `.bash_profile`.
 
-### [Support MLFlow in ray job](https://github.com/Astera-org/obelisk/issues/339)
+#### [Support MLFlow in ray job](https://github.com/Astera-org/obelisk/issues/339)
 
-Previously using mlflow with `tracking_uri="databricks"` would fail if the entrypoint happened to run on the Ray head,
-because the head did not have the databricks config mounted.
+Using mlflow with `tracking_uri="databricks"` now works with `--workers` larger than 1 as it should.
 
 ## [0.1.4] - 2024-06-19
 
@@ -196,7 +203,7 @@ A warning is issued when there are uncommitted changes or if commits have not ye
 
 None
 
-[unreleased]: https://github.com/Astera-org/obelisk/compare/launch/0.1.4...HEAD
+[0.1.5]: https://github.com/Astera-org/obelisk/compare/launch/0.1.4...launch/0.1.5
 [0.1.4]: https://github.com/Astera-org/obelisk/compare/launch/0.1.3...launch/0.1.4
 [0.1.3]: https://github.com/Astera-org/obelisk/compare/launch/0.1.2...launch/0.1.3
 [0.1.2]: https://github.com/Astera-org/obelisk/releases/tag/launch/0.1.2
