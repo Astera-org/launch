@@ -1,28 +1,67 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Write as _};
 
-use itertools::Itertools;
 use time::UtcOffset;
 use time_local::UtcOffsetExt;
 
 use super::ClusterContext;
-use crate::{kubectl, Result};
+use crate::{
+    ansi,
+    kubectl::{self},
+    Result,
+};
 
 pub fn list(context: &ClusterContext) -> Result<()> {
     use comfy_table::{Attribute, Cell, ContentArrangement, Table};
 
     let kubectl = context.kubectl();
 
-    let jobs = kubectl.jobs(kubectl::NAMESPACE)?;
-    let ray_jobs = kubectl.ray_jobs(kubectl::NAMESPACE)?;
+    fn cmp_date_then_name(
+        a: &kubectl::ResourceMetadata,
+        b: &kubectl::ResourceMetadata,
+    ) -> std::cmp::Ordering {
+        a.creation_timestamp
+            .cmp(&b.creation_timestamp)
+            .reverse()
+            .then_with(|| a.name.cmp(&b.name))
+    }
 
-    let mut map: HashMap<String, (Option<kubectl::Job>, Option<kubectl::RayJob>)> =
-        HashMap::with_capacity(jobs.len() + ray_jobs.len());
+    let jobs = {
+        let mut jobs = kubectl.jobs(kubectl::NAMESPACE)?;
+        jobs.sort_by(|a, b| cmp_date_then_name(&a.metadata, &b.metadata));
+        jobs
+    };
+
+    let ray_jobs = {
+        let mut ray_jobs = kubectl.ray_jobs(kubectl::NAMESPACE)?;
+        ray_jobs.sort_by(|a, b| cmp_date_then_name(&a.metadata, &b.metadata));
+        ray_jobs
+    };
+
+    let pods = {
+        let mut pods = kubectl.pods(kubectl::NAMESPACE)?;
+        pods.sort_by(|a, b| cmp_date_then_name(&a.metadata, &b.metadata));
+        pods
+    };
+
+    #[derive(Default)]
+    struct Entry {
+        job: Option<kubectl::Job>,
+        ray_job: Option<kubectl::RayJob>,
+        pods: Vec<kubectl::Pod>,
+    }
+
+    let mut map: HashMap<String, Entry> = HashMap::with_capacity({
+        // The actual capacity will be somewhere between max(j, r) and j + r.
+        jobs.len() + ray_jobs.len()
+    });
+
+    let mut ray_cluster_name_to_pods: HashMap<String, Vec<kubectl::Pod>> = HashMap::default();
 
     for job in jobs {
         assert!(map
             .entry(job.metadata.name.clone())
             .or_default()
-            .0
+            .job
             .replace(job)
             .is_none());
     }
@@ -31,69 +70,40 @@ pub fn list(context: &ClusterContext) -> Result<()> {
         assert!(map
             .entry(job.metadata.name.clone())
             .or_default()
-            .1
+            .ray_job
             .replace(job)
             .is_none());
     }
 
-    struct Row {
-        name: String,
-        created: time::OffsetDateTime,
-        user: Option<String>,
-        job_status: Option<String>,
-        ray_job_status: Option<String>,
-    }
-
-    fn determine_user<'a>(
-        job: Option<&'a kubectl::Job>,
-        ray_job: Option<&'a kubectl::RayJob>,
-    ) -> Option<&'a str> {
-        let job_meta = job.as_ref().map(|job| &job.metadata);
-        let ray_job_meta = ray_job.as_ref().map(|ray_job| &ray_job.metadata);
-
-        let machine_user_host = Option::or(
-            job_meta.and_then(super::common::launched_by_machine_user),
-            ray_job_meta.and_then(super::common::launched_by_machine_user),
-        );
-
-        let tailscale_user_host = Option::or(
-            job_meta.and_then(super::common::launched_by_tailscale_user),
-            ray_job_meta.and_then(super::common::launched_by_tailscale_user),
-        );
-
-        tailscale_user_host
-            .and_then(|value| value.host().is_some().then_some(value.user()))
-            .or(machine_user_host.map(|value| value.user()))
+    for pod in pods {
+        if let Some(owner_reference) = pod.metadata.owner_references.first() {
+            match owner_reference.kind.as_str() {
+                "Job" => {
+                    assert_eq!(
+                        Some(&owner_reference.name),
+                        pod.metadata.labels.get("job-name"),
+                        "owner reference and label `job-name` should be the same"
+                    );
+                    if let Some(entry) = map.get_mut(&owner_reference.name) {
+                        entry.pods.push(pod);
+                    }
+                }
+                "RayCluster" => {
+                    ray_cluster_name_to_pods
+                        .entry(owner_reference.name.to_owned())
+                        .or_default()
+                        .push(pod);
+                }
+                _ => {}
+            }
+        }
     }
 
     let rows = {
         let mut rows: Vec<Row> = map
             .into_iter()
-            .map(|(name, (job, ray_job))| Row {
-                name,
-                created: match (&job, &ray_job) {
-                    (Some(job), Some(ray_job)) => job
-                        .metadata
-                        .creation_timestamp
-                        .min(ray_job.metadata.creation_timestamp),
-                    (Some(job), None) => job.metadata.creation_timestamp,
-                    (None, Some(ray_job)) => ray_job.metadata.creation_timestamp,
-                    (None, None) => unreachable!(
-                        "each entry in the hashmap should contain either a Job or a RayJob, or both"
-                    ),
-                },
-                user: determine_user(job.as_ref(), ray_job.as_ref()).map(str::to_string),
-                job_status: job.map(|job| {
-                    job.status
-                        .conditions
-                        .iter()
-                        .map(|condition| match &condition.reason {
-                            Some(reason) => format!("{}: {reason}", &condition.r#type),
-                            None => condition.r#type.to_string(),
-                        })
-                        .join("\n")
-                }),
-                ray_job_status: ray_job.map(|ray_job| ray_job.status.job_deployment_status),
+            .map(|(name, Entry { job, ray_job, pods })| -> Row {
+                Row::new(name, job, ray_job, pods, &ray_cluster_name_to_pods)
             })
             .collect::<Vec<_>>();
         rows.sort_by(|a, b| a.created.cmp(&b.created).reverse());
@@ -187,4 +197,200 @@ pub fn list(context: &ClusterContext) -> Result<()> {
     println!("{table}");
 
     Ok(())
+}
+
+struct Row {
+    name: String,
+    created: time::OffsetDateTime,
+    job_status: Option<String>,
+    ray_job_status: Option<String>,
+    user: Option<String>,
+}
+
+impl Row {
+    fn new(
+        name: String,
+        job: Option<kubectl::Job>,
+        ray_job: Option<kubectl::RayJob>,
+        pods: Vec<kubectl::Pod>,
+        ray_cluster_name_to_pods: &HashMap<String, Vec<kubectl::Pod>>,
+    ) -> Self {
+        Self {
+            created: match (&job, &ray_job) {
+                (Some(job), Some(ray_job)) => job
+                    .metadata
+                    .creation_timestamp
+                    .min(ray_job.metadata.creation_timestamp),
+                (Some(job), None) => job.metadata.creation_timestamp,
+                (None, Some(ray_job)) => ray_job.metadata.creation_timestamp,
+                (None, None) => pods
+                    .first()
+                    .map(|pod| pod.metadata.creation_timestamp)
+                    .unwrap_or_else(|| {
+                        unreachable!(
+                        "each entry in the hashmap should contain at least one Job, RayJob or Pod."
+                    )
+                    }),
+            },
+            user: determine_user(job.as_ref(), ray_job.as_ref()).map(str::to_string),
+            job_status: job.map(|job| {
+                let mut out = String::new();
+                for condition in &job.status.conditions {
+                    if condition.status {
+                        append_job_condition(&mut out, condition);
+                    }
+                }
+
+                for pod in pods {
+                    append_pod_status(&mut out, &pod);
+                }
+
+                out
+            }),
+            ray_job_status: ray_job.map(|ray_job| {
+                // Running:
+                //
+                // ```
+                // (while true; do kubectl get -n launch rayjob mick-lsm7l  -o json | jq  -c '{job: .status.jobStatus, clus: .status.rayClusterStatus.state, dep: .status.jobDeploymentStatus}'; sleep 1; done) | uniq
+                // ```
+                //
+                // Emitted:
+                //
+                // ```
+                // {"job":null,"clus":null,"dep":"Initializing"}
+                // {"job":null,"clus":null,"dep":"Running"}
+                // {"job":"RUNNING","clus":"ready","dep":"Running"}
+                // {"job":"SUCCEEDED","clus":"ready","dep":"Running"}
+                // {"job":"SUCCEEDED","clus":"ready","dep":"Complete"}
+                // ```
+                //
+                // A failing command emits:
+                // ```
+                // {"job":null,"clus":null,"dep":"Initializing"}
+                // {"job":null,"clus":null,"dep":"Running"}
+                // {"job":"FAILED","clus":"ready","dep":"Running"}
+                // {"job":"FAILED","clus":"ready","dep":"Failed"}
+                // ```
+                // The cluster deployment status seems to be closely related to the status of the cluster head pod.
+                // That information is valuable, but the rest is not.
+
+                let job_deployment_status = ray_job.status.job_deployment_status.as_str();
+
+                let mut out = String::new();
+
+                append_job_deployment_status(&mut out, job_deployment_status);
+
+                if let Some(ray_cluster_pods) = ray_job
+                    .status
+                    .ray_cluster_name
+                    .as_deref()
+                    .and_then(|name| ray_cluster_name_to_pods.get(name))
+                {
+                    for pod in ray_cluster_pods {
+                        append_pod_status(&mut out, pod);
+                    }
+                }
+
+                out
+            }),
+            name,
+        }
+    }
+}
+
+fn append_job_condition(out: &mut String, condition: &kubectl::JobCondition) {
+    if !out.is_empty() {
+        out.push('\n');
+    }
+
+    let ansii_start = match condition.r#type {
+        kubectl::JobConditionType::Failed => ansi::RED,
+        kubectl::JobConditionType::Suspended => ansi::YELLOW,
+        kubectl::JobConditionType::Complete => ansi::EMPTY,
+    };
+    let ansii_end = if ansii_start.is_empty() {
+        ""
+    } else {
+        ansi::RESET
+    };
+    out.push_str(ansii_start);
+    out.push_str(condition.r#type.as_str());
+    out.push_str(ansii_end);
+
+    if let Some(reason) = condition.reason.as_deref() {
+        out.push_str(": ");
+        out.push_str(reason);
+    }
+
+    // NOTE: Omitting the `condition.message` property to keep the table concise.
+}
+
+fn append_job_deployment_status(out: &mut String, job_deployment_status: &str) {
+    let ansii_start = match job_deployment_status {
+        "Initializing" => ansi::YELLOW, // If you're seeing this and it is not changing, the cluster head is having trouble starting. Maybe the docker image can't be pulled.
+        "Running" => ansi::GREEN,
+        "Failed" => ansi::RED,
+        "Complete" => ansi::EMPTY,
+        "Suspended" => ansi::YELLOW, // Guessing this might exist.
+        _ => ansi::CYAN,             // Not sure what other states to expect.
+    };
+
+    let ansii_end = if ansii_start.is_empty() {
+        ""
+    } else {
+        ansi::RESET
+    };
+
+    out.push_str(ansii_start);
+    out.push_str(job_deployment_status);
+    out.push_str(ansii_end);
+}
+
+fn append_pod_status(out: &mut String, pod: &kubectl::Pod) {
+    if !out.is_empty() {
+        out.push('\n');
+    }
+
+    let ansii_start = match pod.status.phase {
+        kubectl::PodPhase::Pending => ansi::YELLOW,
+        kubectl::PodPhase::Running => ansi::GREEN,
+        kubectl::PodPhase::Succeeded => ansi::EMPTY, // It is good but not worthy of attention.
+        kubectl::PodPhase::Failed => ansi::RED,
+        kubectl::PodPhase::Unknown => ansi::RED,
+    };
+
+    let ansii_end = if ansii_start.is_empty() {
+        ""
+    } else {
+        ansi::RESET
+    };
+
+    write!(
+        out,
+        "{}: {ansii_start}{}{ansii_end}",
+        &pod.metadata.name, pod.status
+    )
+    .expect("write to string should succeed");
+}
+
+fn determine_user<'a>(
+    job: Option<&'a kubectl::Job>,
+    ray_job: Option<&'a kubectl::RayJob>,
+) -> Option<&'a str> {
+    let job_meta = job.as_ref().map(|job| &job.metadata);
+    let ray_job_meta = ray_job.as_ref().map(|ray_job| &ray_job.metadata);
+
+    let machine_user_host = Option::or(
+        job_meta.and_then(super::common::launched_by_machine_user),
+        ray_job_meta.and_then(super::common::launched_by_machine_user),
+    );
+
+    let tailscale_user_host = Option::or(
+        job_meta.and_then(super::common::launched_by_tailscale_user),
+        ray_job_meta.and_then(super::common::launched_by_tailscale_user),
+    );
+
+    tailscale_user_host
+        .and_then(|value| value.host().is_some().then_some(value.user()))
+        .or(machine_user_host.map(|value| value.user()))
 }

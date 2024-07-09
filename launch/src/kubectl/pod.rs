@@ -1,9 +1,20 @@
-use std::fmt;
+use std::fmt::{self, Write};
 
 use serde::Deserialize;
 
+use super::common;
+
+/// [Pod](https://kubernetes.io/docs/reference/kubernetes-api/workload-resources/pod-v1/)
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Pod {
+    pub metadata: common::ResourceMetadata,
+    pub status: PodStatus,
+}
+
 /// Partially implements [PodStatus](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core)
 #[derive(Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct PodStatus {
     /// Current service state of pod. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#pod-conditions
     #[serde(default)]
@@ -64,47 +75,94 @@ impl PodStatus {
             _ => None,
         }
     }
+
+    pub fn display_multi_line(&self, indent: usize) -> PodStatusDisplayMultiLine {
+        PodStatusDisplayMultiLine {
+            status: self,
+            indent,
+        }
+    }
 }
 
 impl fmt::Display for PodStatus {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.phase.fmt(f)?;
+
         if let Some(message) = self.message.as_ref() {
             f.write_str(": ")?;
             f.write_str(message)?;
         }
 
-        for condition in &self.conditions {
-            write!(f, ", condition {}", &condition.r#type)?;
+        Ok(())
+    }
+}
+
+pub struct PodStatusDisplayMultiLine<'a> {
+    status: &'a PodStatus,
+    indent: usize,
+}
+
+impl<'a> fmt::Display for PodStatusDisplayMultiLine<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let status = self.status;
+        let indent = self.indent;
+
+        fn do_indent(f: &mut fmt::Formatter<'_>, indent: usize) -> fmt::Result {
+            for _ in 0..indent {
+                f.write_str("  ")?;
+            }
+            Ok(())
+        }
+
+        status.phase.fmt(f)?;
+
+        if let Some(message) = status.message.as_ref() {
+            f.write_str(": ")?;
+            f.write_str(message)?;
+        }
+
+        if !status.conditions.is_empty() {
+            f.write_char('\n')?;
+            do_indent(f, indent)?;
+            f.write_str("Conditions:")?;
+        }
+
+        for condition in &status.conditions {
+            // Hide conditions that are fine.
+            if condition.status == "True" {
+                continue;
+            }
+            f.write_char('\n')?;
+            do_indent(f, indent + 1)?;
+            write!(f, "{}: {}", &condition.r#type, &condition.status)?;
             if let Some(reason) = condition.reason.as_deref() {
-                write!(f, " {reason}")?;
+                write!(f, ", reason: {reason}")?;
             }
             if let Some(message) = condition.message.as_deref() {
-                write!(f, ": {message}")?;
+                write!(f, ", message: {message}")?;
             }
         }
 
-        for status in &self.container_statuses {
-            let ContainerStatus { name, image, state } = status;
-            let (state_name, reason, message) = match state {
-                ContainerState::Waiting(state) => {
-                    ("waiting", state.reason.as_deref(), state.message.as_deref())
-                }
-                ContainerState::Running(_) => ("running", None, None),
-                ContainerState::Terminated(state) => (
-                    "terminated",
-                    state.reason.as_deref(),
-                    state.message.as_deref(),
-                ),
-            };
+        if !status.container_statuses.is_empty() {
+            f.write_char('\n')?;
+            do_indent(f, indent)?;
+            f.write_str("Container Statuses:")?;
+        }
+
+        for status in &status.container_statuses {
+            f.write_char('\n')?;
+            do_indent(f, indent + 1)?;
+            let name = &status.name;
+            let image = &status.image;
+            let state_name = status.state.state_name();
             write!(
                 f,
-                ", container {name:?} using image {image:?} is {state_name}"
+                "container {name:?} using image {image:?} is {state_name}"
             )?;
-            if let Some(reason) = reason {
+            if let Some(reason) = status.state.reason() {
                 write!(f, " because {reason}")?;
             }
-            if let Some(message) = message {
+            if let Some(message) = status.state.message() {
                 write!(f, ": {message}")?;
             }
         }
@@ -141,12 +199,17 @@ pub struct PodCondition {
 
 // https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core
 #[derive(Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct ContainerStatus {
     /// Name is a DNS_LABEL representing the unique name of the container. Each container in a pod must have a unique name across all container types. Cannot be updated.
     pub name: String,
 
     /// Image is the name of container image that the container is running. The container image may not match the image used in the PodSpec, as it may have been resolved by the runtime. More info: https://kubernetes.io/docs/concepts/containers/images.
     pub image: String,
+
+    /// ImageID is the image ID of the container's image. The image ID may not match the image ID of the image used in the PodSpec, as it may have been resolved by the runtime.
+    #[serde(rename = "imageID")]
+    pub image_id: String,
 
     pub state: ContainerState,
 }
@@ -171,6 +234,32 @@ pub enum ContainerState {
     Running(ContainerStateRunning),
     #[serde(rename = "terminated")]
     Terminated(ContainerStateTerminated),
+}
+
+impl ContainerState {
+    pub fn state_name(&self) -> &'static str {
+        match self {
+            ContainerState::Waiting(_) => "waiting",
+            ContainerState::Running(_) => "running",
+            ContainerState::Terminated(_) => "terminated",
+        }
+    }
+
+    pub fn message(&self) -> Option<&str> {
+        match self {
+            ContainerState::Waiting(state) => state.message.as_deref(),
+            ContainerState::Running(_) => None,
+            ContainerState::Terminated(state) => state.message.as_deref(),
+        }
+    }
+
+    pub fn reason(&self) -> Option<&str> {
+        match self {
+            ContainerState::Waiting(state) => state.reason.as_deref(),
+            ContainerState::Running(_) => None,
+            ContainerState::Terminated(state) => state.reason.as_deref(),
+        }
+    }
 }
 
 /// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#containerstatewaiting-v1-core
@@ -202,6 +291,7 @@ pub struct ContainerStateRunning {
 
 pub struct ContainerStateTerminated {
     /// Container's ID in the format '<type>://<container_id>'
+    #[serde(rename = "containerID")]
     container_id: String,
 
     /// Exit status from the last termination of the container
@@ -209,6 +299,7 @@ pub struct ContainerStateTerminated {
     exit_code: Option<i32>,
 
     /// Time at which the container last terminated
+    #[serde(with = "time::serde::rfc3339")]
     finished_at: time::OffsetDateTime,
 
     /// Message regarding the last termination of the container
@@ -241,11 +332,11 @@ pub enum PodPhase {
 impl fmt::Display for PodPhase {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(match self {
-            PodPhase::Pending => "pending",
-            PodPhase::Running => "running",
-            PodPhase::Succeeded => "succeeded",
-            PodPhase::Failed => "failed",
-            PodPhase::Unknown => "unknown",
+            PodPhase::Pending => "Pending",
+            PodPhase::Running => "Running",
+            PodPhase::Succeeded => "Succeeded",
+            PodPhase::Failed => "Failed",
+            PodPhase::Unknown => "Unknown",
         })
     }
 }

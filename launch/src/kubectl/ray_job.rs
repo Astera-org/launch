@@ -8,6 +8,7 @@ pub struct RayJob {
     pub metadata: ResourceMetadata,
     pub status: RayJobStatus,
 }
+
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct RayJobStatus {
@@ -25,6 +26,9 @@ pub struct RayJobStatus {
 
     #[serde(rename = "endTime", default, with = "time::serde::rfc3339::option")]
     pub end_time: Option<time::OffsetDateTime>,
+
+    #[serde(rename = "rayClusterName", default)]
+    pub ray_cluster_name: Option<String>,
 
     #[serde(rename = "rayClusterStatus")]
     pub ray_cluster_status: RayJobStatusRayClusterStatus,

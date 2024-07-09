@@ -43,7 +43,8 @@ impl fmt::Display for PodLogPollError {
         match self {
             PodLogPollError::BadStatus(status) => write!(
                 f,
-                "Pod logs will not become available because it reached status {status}"
+                "Pod logs will not become available because it reached status {}",
+                status.display_multi_line(0),
             ),
             PodLogPollError::Timeout => write!(
                 f,
@@ -81,7 +82,7 @@ pub fn wait_for_and_follow_pod_logs(
     info!("Waiting for pod logs to become available...");
 
     let deadline = Deadline::after(LOG_AVAILABILITY_TIMEOUT);
-    let mut status = kubectl.pod_status(namespace, name)?;
+    let mut status = kubectl.pod(namespace, name)?.status;
     log_status(&status);
     loop {
         if let Some(logs_available) = status.are_logs_available() {
@@ -100,7 +101,7 @@ pub fn wait_for_and_follow_pod_logs(
             .map_err(|_| PodLogPollError::Timeout)?;
 
         status = {
-            let new_status = kubectl.pod_status(namespace, name)?;
+            let new_status = kubectl.pod(namespace, name)?.status;
             if new_status != status {
                 log_status(&new_status);
             }

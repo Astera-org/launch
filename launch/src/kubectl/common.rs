@@ -11,7 +11,7 @@ pub struct GetResource<T> {
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
-/// https://github.com/kubernetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#metadata
+/// https://github.com/kuberneetes/community/blob/master/contributors/devel/sig-architecture/api-conventions.md#metadata
 pub struct ResourceMetadata {
     pub name: String,
 
@@ -42,6 +42,9 @@ pub struct ResourceMetadata {
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct OwnerReference {
+    #[serde(rename = "kind")]
+    pub kind: String,
+
     #[serde(rename = "name")]
     pub name: String,
 }

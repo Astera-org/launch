@@ -4,6 +4,14 @@
 
 ### Features
 
+#### [Enrich launch list output with pod information](https://github.com/Astera-org/obelisk/issues/258)
+
+The `launch list` subcommand now shows information about the running pods for Job and RayJob resources.
+
+#### [Colored launch list output](https://github.com/Astera-org/obelisk/issues/367)
+
+The `launch list` subcommand output is now colored.
+
 ### Fixes
 
 ## [0.1.5] - 2024-07-09

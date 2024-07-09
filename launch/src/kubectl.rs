@@ -2,8 +2,8 @@ use std::path::Path;
 
 use crate::{process, Result};
 
-mod pod_status;
-pub use pod_status::*;
+mod pod;
+pub use pod::*;
 
 mod name;
 pub use name::*;
@@ -130,6 +130,20 @@ impl<'a> Kubectl<'a> {
         }
     }
 
+    pub fn pods(&self, namespace: &str) -> Result<Vec<Pod>> {
+        let output = process::args!(
+            self.kubectl(),
+            "get",
+            "pods",
+            "--namespace",
+            namespace,
+            "--output=json"
+        )
+        .output()?;
+
+        Ok(serde_json::from_slice::<GetResource<_>>(&output.stdout)?.items)
+    }
+
     pub fn get_pods_for_job(&self, namespace: &str, job_name: &str) -> Result<Vec<String>> {
         let output = process::args!(
             self.kubectl(),
@@ -161,7 +175,7 @@ impl<'a> Kubectl<'a> {
         Ok(())
     }
 
-    pub fn pod_status(&self, namespace: &str, pod_name: &str) -> Result<PodStatus> {
+    pub fn pod(&self, namespace: &str, pod_name: &str) -> Result<Pod> {
         let output = process::args!(
             self.kubectl(),
             "get",
@@ -173,8 +187,7 @@ impl<'a> Kubectl<'a> {
         )
         .output()?;
 
-        let root: PodStatusRoot = serde_json::from_slice(&output.stdout)?;
-        Ok(root.status)
+        Ok(serde_json::from_slice(&output.stdout)?)
     }
 
     pub fn jobs(&self, namespace: &str) -> Result<Vec<Job>> {
@@ -240,42 +253,6 @@ struct CreateJobRoot {
 struct CreateOutputMetadata {
     namespace: String,
     name: String,
-}
-
-// https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#pod-phase
-#[derive(Debug, serde::Deserialize)]
-pub enum PodStatusPhase {
-    /// The pod has been accepted by the Kubernetes system, but one or more of the containers have
-    /// not been started. This includes time spent waiting for the scheduler to schedule the pod and
-    /// for the pod to be downloaded and for images to be downloaded.
-    #[serde(rename = "Pending")]
-    Pending,
-
-    /// The pod has been bound to a node, and all of the containers have been started. At least one
-    /// container is still running, or is in the process of starting or restarting.
-    #[serde(rename = "Running")]
-    Running,
-
-    /// All containers in the pod have terminated successfully, and they will not be restarted.
-    #[serde(rename = "Succeeded")]
-    Succeeded,
-
-    /// All containers in the pod have terminated, and at least one container has terminated in
-    /// failure. That is, the container either exited with a non-zero status or was terminated by
-    /// the system.
-    #[serde(rename = "Failed")]
-    Failed,
-
-    /// The state of the pod could not be obtained, typically due to an error in communicating with
-    /// the host of the pod.
-    #[serde(rename = "Unknown")]
-    Unknown,
-}
-
-// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core
-#[derive(Debug, serde::Deserialize)]
-pub struct PodStatusRoot {
-    pub status: PodStatus,
 }
 
 pub const NAMESPACE: &str = "launch";

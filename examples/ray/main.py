@@ -1,9 +1,12 @@
+import time
+
 import ray
 
 
 @ray.remote
 def work(x):
-    print(f"Hello, I am working on doubling {x}!")
+    print(f"Hello, I am working on doubling {x} for the next minute!")
+    time.sleep(60)
     return x * 2
 
 

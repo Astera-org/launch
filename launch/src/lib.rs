@@ -1,3 +1,4 @@
+pub(crate) mod ansi;
 pub(crate) mod bash_escape;
 pub(crate) mod builder;
 pub(crate) mod docker;
