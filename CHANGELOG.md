@@ -8,6 +8,32 @@
 
 The `launch list` subcommand now shows information about the running pods for Job and RayJob resources.
 
+```
+┌───────────────────┬─────────────────────┬─────────────────────────────┬────────────────────────────┬─────────────┐
+│ name              ┆ created (+02:00)    ┆ Job status                  ┆ RayJob status              ┆ launched by │
+╞═══════════════════╪═════════════════════╪═════════════════════════════╪════════════════════════════╪═════════════╡
+│ eric-6gfsd        ┆ 2024-07-09 20:13:28 ┆ eric-6gfsd-9zmnl: Running   ┆                            ┆ eric        │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ kevin-zrhm6       ┆ 2024-07-08 17:09:58 ┆                             ┆ Initializing               ┆ kevin       │
+│                   ┆                     ┆                             ┆ kevin-zrhm6-raycluster-d6w ┆             │
+│                   ┆                     ┆                             ┆ qd-worker-small-group-8jrx ┆             │
+│                   ┆                     ┆                             ┆ 6: Pending                 ┆             │
+│                   ┆                     ┆                             ┆ kevin-zrhm6-raycluster-d6w ┆             │
+│                   ┆                     ┆                             ┆ qd-head-t75hl: Running     ┆             │
+│                   ┆                     ┆                             ┆ kevin-zrhm6-raycluster-d6w ┆             │
+│                   ┆                     ┆                             ┆ qd-worker-small-group-6p45 ┆             │
+│                   ┆                     ┆                             ┆ 5: Pending                 ┆             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ garymm-xtws5      ┆ 2024-07-04 00:44:53 ┆ Failed:                     ┆ Failed                     ┆ garymm      │
+│                   ┆                     ┆ BackoffLimitExceeded        ┆                            ┆             │
+│                   ┆                     ┆ garymm-xtws5-hwx68: Failed  ┆                            ┆             │
+│                   ┆                     ┆ garymm-xtws5-4h9cq: Failed  ┆                            ┆             │
+│                   ┆                     ┆ garymm-xtws5-hvtr9: Failed  ┆                            ┆             │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌┤
+│ garymm-gdjf4      ┆ 2024-07-03 02:07:54 ┆ Complete                    ┆ Complete                   ┆ garymm      │
+└───────────────────┴─────────────────────┴─────────────────────────────┴────────────────────────────┴─────────────┘
+```
+
 #### [Colored launch list output](https://github.com/Astera-org/obelisk/issues/367)
 
 The `launch list` subcommand output is now colored.
