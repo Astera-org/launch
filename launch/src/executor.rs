@@ -156,6 +156,6 @@ impl<'a> ExecutionArgs<'a> {
 
 pub struct ExecutionOutput {}
 
-pub trait ExecutionBackend {
+pub trait Executor {
     fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput>;
 }

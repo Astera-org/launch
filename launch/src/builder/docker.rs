@@ -1,9 +1,9 @@
 use log::debug;
 
-use super::{BuildArgs, BuildBackend, BuildOutput};
+use super::{BuildArgs, BuildOutput, Builder};
 use crate::{docker, Result};
 
-pub struct LocalBuildBackend;
+pub struct DockerBuilder;
 
 // This conversion is necessary because the build arguments for the backend may differ from the
 // build arguments accepted by the docker command line abstraction.
@@ -26,7 +26,7 @@ fn from_docker_output(output: docker::BuildOutput) -> BuildOutput {
     BuildOutput { image_digest }
 }
 
-impl BuildBackend for LocalBuildBackend {
+impl Builder for DockerBuilder {
     fn build(&self, args: BuildArgs) -> Result<BuildOutput> {
         let output = from_docker_output(docker::build_and_push(into_docker_args(args))?);
         debug!("image_digest: {:?}", output.image_digest);

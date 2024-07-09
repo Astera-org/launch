@@ -2,8 +2,8 @@
 
 use log::{debug, info, warn};
 
-use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
-use crate::{bash_escape, execution::common, kubectl::ResourceHandle};
+use super::{ExecutionArgs, ExecutionOutput, Executor, Result};
+use crate::{bash_escape, executor::common, kubectl::ResourceHandle};
 
 fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let image = args.image();
@@ -124,7 +124,7 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
 
 pub struct RayExecutionBackend;
 
-impl ExecutionBackend for RayExecutionBackend {
+impl Executor for RayExecutionBackend {
     fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput> {
         let kubectl = args.context.kubectl();
         let headlamp_url = args.context.headlamp_url();

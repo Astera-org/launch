@@ -1,7 +1,7 @@
 pub(crate) mod bash_escape;
-pub(crate) mod build;
+pub(crate) mod builder;
 pub(crate) mod docker;
-pub(crate) mod execution;
+pub(crate) mod executor;
 pub(crate) mod git;
 pub(crate) mod kubectl;
 pub(crate) mod process;

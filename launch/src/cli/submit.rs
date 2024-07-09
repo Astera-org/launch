@@ -5,8 +5,8 @@ use log::{debug, warn};
 
 use super::ClusterContext;
 use crate::{
-    build,
-    execution::{self, ExecutionArgs, ExecutionBackend},
+    builder,
+    executor::{self, ExecutionArgs, Executor},
     git,
     kubectl::{self, is_rfc_1123_label},
     unit::bytes::{self, Bytes},
@@ -20,6 +20,10 @@ fn gibibyte(s: &str) -> Result<Bytes> {
 
 #[derive(Debug, Args)]
 pub struct SubmitArgs {
+    /// How to build the image.
+    #[arg(long = "builder", value_enum, default_value_t)]
+    pub builder: BuilderArg,
+
     /// The minimum number of GPUs per worker.
     #[arg(long = "gpus", default_value_t)]
     pub gpus: u32,
@@ -44,7 +48,7 @@ pub struct SubmitArgs {
     #[arg(long = "name-prefix", value_parser = expect_name_prefix)]
     pub name_prefix: Option<String>,
 
-    #[arg(long = "databrickscfg-mode", value_enum, default_value_t, help = concat!("Control whether a secret should be created from the submitting machine and mounted as a file at \"", execution::DATABRICKSCFG_MOUNT, "\" through a volume in the container of the submitted job."))]
+    #[arg(long = "databrickscfg-mode", value_enum, default_value_t, help = concat!("Control whether a secret should be created from the submitting machine and mounted as a file at \"", executor::DATABRICKSCFG_MOUNT, "\" through a volume in the container of the submitted job."))]
     pub databrickscfg_mode: DatabricksCfgMode,
 
     #[arg(required = true, last = true)]
@@ -62,6 +66,15 @@ fn expect_name_prefix(value: &str) -> Result<String, &'static str> {
 }
 
 #[derive(Debug, Default, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum BuilderArg {
+    /// Use `docker` to build the image locally.
+    #[default]
+    Docker,
+    /// Use `kaniko` to build the image remotely.
+    Kaniko,
+}
+
+#[derive(Debug, Default, Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub enum DatabricksCfgMode {
     /// The databrickscfg secret will be created and attached to the container if possible.
     #[default]
@@ -74,6 +87,7 @@ pub enum DatabricksCfgMode {
 
 pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
     let SubmitArgs {
+        builder,
         gpus,
         gpu_mem,
         workers,
@@ -110,9 +124,13 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
     }
 
     let tag = format!("{host}/{image_name}:latest", host = context.docker_host());
-    let build_backend = &build::LocalBuildBackend as &dyn build::BuildBackend;
+    let build_backend = match builder {
+        BuilderArg::Docker => &builder::DockerBuilder as &dyn builder::Builder,
+        BuilderArg::Kaniko => &builder::KanikoBuilder as &dyn builder::Builder,
+    };
+
     let image_digest = build_backend
-        .build(build::BuildArgs {
+        .build(builder::BuildArgs {
             git_commit_hash: &git_info.commit_hash,
             image_tag: &tag,
         })?
@@ -200,9 +218,9 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         name
     };
 
-    let execution_backend: &dyn ExecutionBackend = match execution_backend_kind {
-        ExecutionBackendKind::Job => &execution::KubernetesExecutionBackend,
-        ExecutionBackendKind::RayJob => &execution::RayExecutionBackend,
+    let execution_backend: &dyn Executor = match execution_backend_kind {
+        ExecutionBackendKind::Job => &executor::KubernetesExecutionBackend,
+        ExecutionBackendKind::RayJob => &executor::RayExecutionBackend,
     };
 
     execution_backend.execute(ExecutionArgs {

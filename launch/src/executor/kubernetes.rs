@@ -2,9 +2,9 @@
 
 use log::info;
 
-use super::{ExecutionArgs, ExecutionBackend, ExecutionOutput, Result};
+use super::{ExecutionArgs, ExecutionOutput, Executor, Result};
 use crate::{
-    execution::common::{self},
+    executor::common::{self},
     kubectl::ResourceHandle,
 };
 
@@ -60,7 +60,7 @@ fn job_spec(args: &ExecutionArgs) -> serde_json::Value {
 
 pub struct KubernetesExecutionBackend;
 
-impl ExecutionBackend for KubernetesExecutionBackend {
+impl Executor for KubernetesExecutionBackend {
     fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput> {
         let kubectl = args.context.kubectl();
         let headlamp_url = args.context.headlamp_url();

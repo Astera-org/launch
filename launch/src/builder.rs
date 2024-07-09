@@ -1,7 +1,8 @@
-mod local;
-mod remote;
+mod docker;
+mod kaniko;
 
-pub use local::*;
+pub use docker::*;
+pub use kaniko::*;
 
 use crate::Result;
 
@@ -14,6 +15,6 @@ pub struct BuildOutput {
     pub image_digest: String,
 }
 
-pub trait BuildBackend {
+pub trait Builder {
     fn build(&self, args: BuildArgs) -> Result<BuildOutput>;
 }
