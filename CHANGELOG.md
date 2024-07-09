@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+### Fixes
+
 ## [0.1.5] - 2024-07-09
 
 You can install this version through pixi with:
@@ -203,6 +209,7 @@ A warning is issued when there are uncommitted changes or if commits have not ye
 
 None
 
+[unreleased]: https://github.com/Astera-org/obelisk/compare/launch/0.1.5...HEAD
 [0.1.5]: https://github.com/Astera-org/obelisk/compare/launch/0.1.4...launch/0.1.5
 [0.1.4]: https://github.com/Astera-org/obelisk/compare/launch/0.1.3...launch/0.1.4
 [0.1.3]: https://github.com/Astera-org/obelisk/compare/launch/0.1.2...launch/0.1.3
