@@ -2,6 +2,9 @@ use std::path::Path;
 
 use crate::{process, Result};
 
+mod node;
+pub use node::*;
+
 mod pod;
 pub use pod::*;
 
@@ -73,6 +76,12 @@ impl<'a> Kubectl<'a> {
         .require_success()?;
 
         Ok(())
+    }
+
+    pub fn nodes(&self) -> Result<Vec<Node>> {
+        let output = process::args!(self.kubectl(), "get", "nodes", "--output=json").output()?;
+
+        Ok(serde_json::from_slice::<GetResource<_>>(&output.stdout)?.items)
     }
 
     /// The input is written to stdin and should be a [YAML or JSON formatted kubernetes

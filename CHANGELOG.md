@@ -4,6 +4,26 @@
 
 ### Features
 
+#### [Add comment to list nodes with GPU information](https://github.com/Astera-org/obelisk/issues/263)
+
+The `launch list` subcommand has been modified to take an optional parameter that specifies what to list.
+
+You can now issue `launch list nodes` to list the cluster nodes names and their GPU information.
+The output looks something like this:
+
+
+```
+┌────────────────────────────────┬─────────────────────────┬─────────┬───────────┐
+│ node                           ┆ GPU                     ┆ GPU mem ┆ GPU count │
+╞════════════════════════════════╪═════════════════════════╪═════════╪═══════════╡
+│ legal-jackal.astera-infra.com  ┆ NVIDIA-GeForce-RTX-3090 ┆ 24GiB   ┆ 4         │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ set-falcon.astera-infra.com    ┆ NVIDIA-RTX-A6000        ┆ 47GiB   ┆ 4         │
+├╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌┼╌╌╌╌╌╌╌╌╌╌╌┤
+│ wadj-wer.astera-infra.com      ┆                         ┆         ┆           │
+└────────────────────────────────┴─────────────────────────┴─────────┴───────────┘
+```
+
 #### [Enrich launch list output with pod information](https://github.com/Astera-org/obelisk/issues/258)
 
 The `launch list` subcommand now shows information about the running pods for Job and RayJob resources.

@@ -66,7 +66,7 @@ enum Commands {
     Submit(submit::SubmitArgs),
 
     /// List works submitted to the cluster
-    List,
+    List(list::ListArgs),
     /// Follow the logs
     #[command(arg_required_else_help = true)]
     Logs { pod_name: String },
@@ -78,8 +78,8 @@ impl Cli {
             Commands::Submit(args) => {
                 submit::submit(&self.context, args)?;
             }
-            Commands::List => {
-                list::list(&self.context)?;
+            Commands::List(args) => {
+                list::list(&self.context, args)?;
             }
             Commands::Logs { .. } => {
                 todo!();

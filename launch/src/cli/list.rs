@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fmt::Write as _};
 
+use clap::{Args, ValueEnum};
 use time::UtcOffset;
 use time_local::UtcOffsetExt;
 
@@ -10,9 +11,31 @@ use crate::{
     Result,
 };
 
-pub fn list(context: &ClusterContext) -> Result<()> {
-    use comfy_table::{Attribute, Cell, ContentArrangement, Table};
+#[derive(Debug, Args)]
+pub struct ListArgs {
+    /// How to build the image.
+    #[arg(value_enum, default_value_t)]
+    pub resource: ResourceArg,
+}
 
+#[derive(Debug, Default, Clone, Copy, ValueEnum, PartialEq, Eq)]
+pub enum ResourceArg {
+    /// Print information about the launched jobs.
+    #[default]
+    Jobs,
+    /// Print information about the cluster's nodes.
+    Nodes,
+}
+
+pub fn list(context: &ClusterContext, args: ListArgs) -> Result<()> {
+    match args.resource {
+        ResourceArg::Jobs => list_jobs(context)?,
+        ResourceArg::Nodes => list_nodes(context)?,
+    }
+    Ok(())
+}
+
+pub fn list_jobs(context: &ClusterContext) -> Result<()> {
     let kubectl = context.kubectl();
 
     fn cmp_date_then_name(
@@ -171,14 +194,14 @@ pub fn list(context: &ClusterContext) -> Result<()> {
 
     let (column_names, accessors): (Vec<_>, Vec<_>) = columns.into_iter().unzip();
 
-    let mut table = Table::new();
+    let mut table = comfy_table::Table::new();
     table
         .load_preset(comfy_table::presets::UTF8_FULL)
-        .set_content_arrangement(ContentArrangement::Dynamic)
+        .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
         .set_header(
-            column_names
-                .into_iter()
-                .map(|name| Cell::new(name).add_attribute(Attribute::Bold)),
+            column_names.into_iter().map(|name| {
+                comfy_table::Cell::new(name).add_attribute(comfy_table::Attribute::Bold)
+            }),
         );
 
     for row in rows {
@@ -393,4 +416,66 @@ fn determine_user<'a>(
     tailscale_user_host
         .and_then(|value| value.host().is_some().then_some(value.user()))
         .or(machine_user_host.map(|value| value.user()))
+}
+
+pub fn list_nodes(context: &ClusterContext) -> Result<()> {
+    let kubectl = context.kubectl();
+
+    let mut table = comfy_table::Table::new();
+    table
+        .load_preset(comfy_table::presets::UTF8_FULL)
+        .set_content_arrangement(comfy_table::ContentArrangement::Dynamic)
+        .set_header(
+            ["node", "GPU", "GPU mem", "GPU count"]
+                .into_iter()
+                .map(|name| {
+                    comfy_table::Cell::new(name).add_attribute(comfy_table::Attribute::Bold)
+                }),
+        );
+
+    for node in kubectl.nodes()? {
+        table.add_row([
+            comfy_table::Cell::new(node.metadata.name.to_owned()),
+            comfy_table::Cell::new(
+                node.metadata
+                    .labels
+                    .get("nvidia.com/gpu.product")
+                    .map(String::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+            ),
+            comfy_table::Cell::new(
+                node.metadata
+                    .labels
+                    .get("nvidia.com/gpu.memory")
+                    .and_then(|value| {
+                        use crate::unit::bytes;
+                        Some(
+                            bytes::Bytes::new::<bytes::gibibyte>(
+                                // Dividing by 1024 manually to force rounding down. The `Bytes` implementation rounds
+                                // evenly which means that 47.8 GiB becomes 48 GiB. If the user uses that value as a
+                                // minimum requirement through `--gpu-mem 48` it will not run on a machine with 47.8 GiB
+                                // of memory.
+                                value.parse::<u64>().ok()? / 1024,
+                            )?
+                            .display::<bytes::gibibyte>()
+                            .to_string(),
+                        )
+                    })
+                    .unwrap_or_default(),
+            ),
+            comfy_table::Cell::new(
+                node.metadata
+                    .labels
+                    .get("nvidia.com/gpu.count")
+                    .map(String::as_str)
+                    .unwrap_or_default()
+                    .to_owned(),
+            ),
+        ]);
+    }
+
+    print!("{table}");
+
+    Ok(())
 }
