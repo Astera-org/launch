@@ -43,4 +43,7 @@ ENTRYPOINT ["/bin/bash", "/workspace/entrypoint.sh"]
 
 CMD ["bash"]
 
+ARG COMMIT_HASH
+ENV ASTERA_SOURCE_GIT_COMMIT=$COMMIT_HASH
+
 COPY --link src/ src/

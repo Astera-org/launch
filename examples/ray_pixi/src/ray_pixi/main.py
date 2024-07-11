@@ -1,6 +1,8 @@
+from os import environ
+
 import mlflow
-from mlflow.utils.databricks_utils import get_databricks_host_creds
 import ray
+from mlflow.utils.databricks_utils import get_databricks_host_creds
 from ray.runtime_env import RuntimeEnv
 
 
@@ -16,7 +18,9 @@ def main():
     print("I am the entrypoint!")
     mlflow.set_tracking_uri("databricks")
     mlflow.set_experiment("/Shared/launch_example_ray_pixi")
-    with mlflow.start_run() as mlflow_run:
+    with mlflow.start_run(
+        tags={"astera.source.git.commit": environ["ASTERA_SOURCE_GIT_COMMIT"]}
+    ) as mlflow_run:
         run_id = mlflow_run.info.run_id
         experiment_id = mlflow_run.info.experiment_id
 
