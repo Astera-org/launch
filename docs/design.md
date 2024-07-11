@@ -62,13 +62,39 @@ We should consider allowing the user to opt out through a flag or something like
 
 #### How do we specify the number of GPUs for the entry point, the number of workers, etc?
 
-- `--build <local|remote> default: remote` to specify the build backend.
-- `--execution <kubernetes|ray> default: kubernetes` to specify the execution backend.
+- `--builder <docker|kaniko> default: docker` to specify the build backend.
 - `--workers <N> where N >= 1 default 1` to specify the number of workers.
+- `--workers <N> where N >= 1 default 1` to specify the execution backend, when `workers == 1` we use kubernetes Jobs, otherwise when `workers >= 2` we use RayJobs.
+- `--cpus <N> where N >= 0 default 0` to specify the number of cpus per worker.
 - `--gpus <N> where N >= 0 default 0` to specify the number of gpus per worker.
 
-Jobs can end up not utilizing all requested GPUs. For RayJobs, we can enable auto scaling to mitigate that somewhat.
+|               | entrypoint               | worker                                         |
+| ------------- | ------------------------ | ---------------------------------------------- |
+| assigned CPUs | hardcoded as the default | supplied by user through `--cpus <N>` argument |
+| required CPUs | hardcoded as 0           | supplied by user through annotations in python |
+| assigned GPUs | hardcoded as 0           | supplied by user through `--gpus <N>` argument |
+| required GPUs | hardcoded as 0           | supplied by user through annotations in python |
+
+#### Should RayJob entrypoints run on the head node or a worker?
+
+By default the entrypoint is executed on the head node.
+This [can be changed](https://docs.ray.io/en/latest/cluster/faq.html#where-does-my-ray-job-entrypoint-script-run-on-the-head-node-or-worker-nodes) by requesting resources for the entrypoint.
+For large clusters, [the advice](https://docs.ray.io/en/latest/cluster/vms/user-guides/large-cluster-best-practices.html#configuring-the-head-node) is to set `num_cpus` in the ray cluster spec to `0` and setting the required CPUs for the ray entrypoint to something larger than `0`.
+
+We will not do this initially and just run the entrypoints on the head node because we spawn a cluster for each job with its own head node.
+
+If we do ever run the entrypoint on the worker, we need to make sure that ray workers can run multiple jobs concurrently.
+Otherwise if the entrypoint is waiting on some other tasks, but those tasks can not execute on the entrypoint's worker, we are claiming cluster resources that we do not use efficiently.
+[This discussion](https://discuss.ray.io/t/jobs-with-fractional-gpu-usage-are-not-spread-across-gpus-evenly/7799/4) suggests that Ray workers can run jobs concurrently, but we should find more convincing evidence.
 
 #### Should we support spawning multiple workers for the kubernetes execution backend?
 
 Might be useful, the question is how do we tail the logs of multiple workers, just the first one, all mixed together, none by default?
+
+#### How do we mitigate claimed but unused resources?
+
+A Job or RayJob can always claim resources and not use them.
+We could try to detect this, but it probably is not necessary at the beginning.
+
+RayJob workers in particular can easily claim more resources than are being used, because the number of workers and their resources are provisioned regardless of whether work actually gets scheduled on those workers.
+We can enable auto scaling to mitigate that.
