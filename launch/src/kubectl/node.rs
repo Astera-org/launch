@@ -57,29 +57,7 @@ pub struct NodeStatus {
     /// https://kubernetes.io/docs/concepts/nodes/node/#condition
     pub conditions: Vec<NodeCondition>,
 
-    // /// Status of the config assigned to the node via the dynamic Kubelet config feature.
-    // pub config: NodeConfigStatus,
-
-    // /// Endpoints of daemons running on the Node.
-    // pub daemon_endpoints: NodeDaemonEndpoints,
-
-    // /// List of container images on this node
-    // pub images: Vec<ContainerImage>,
-
-    // /// Set of ids/uuids to uniquely identify the node. More info: https://kubernetes.io/docs/concepts/nodes/node/#info
-    // pub node_info: NodeSystemInfo,
-
-    // /// NodePhase is the recently observed lifecycle phase of the node. More info: https://kubernetes.io/docs/concepts/nodes/node/#phase The field is never populated, and now is deprecated.
-    // pub phase: String,
-
-    // /// The available runtime handlers.
-    // pub runtime_handlers: Vec<NodeRuntimeHandler>,
-
-    // /// List of volumes that are attached to the node.
-    // pub volumes_attached: Vec<AttachedVolume>,
-
-    // /// List of attachable volumes in use (mounted) by the node.
-    // pub volumes_in_use: Vec<String>,
+    /// Set of ids/uuids to uniquely identify the node. More info: https://kubernetes.io/docs/concepts/nodes/node/#info
     pub node_info: NodeInfo,
 }
 
