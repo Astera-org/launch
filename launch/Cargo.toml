@@ -3,7 +3,7 @@ name = "launch"
 description = "A tool to help submit work to our cluster."
 # Bumping version should automatically result in a new release.
 # See .github/workflows/package_launch.yaml.
-version = "0.1.5"
+version = "0.1.6"
 edition = "2021"
 build = "build.rs"
 
