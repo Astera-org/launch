@@ -9,33 +9,41 @@ use crate::{kubectl::Kubectl, Result};
 
 #[derive(Debug, Default, Clone, Copy, ValueEnum, PartialEq, Eq)]
 pub enum ClusterContext {
-    /// Refers to https://staging-tailscale-operator.taila1eba.ts.net
-    Staging,
-
     /// Refers to https://berkeley-tailscale-operator.taila1eba.ts.net
     #[default]
     Berkeley,
+
+    /// Refers to https://staging-tailscale-operator.taila1eba.ts.net
+    Staging,
+
+    /// Refers to https://voltage-park-tailscale-operator.taila1eba.ts.net
+    VoltagePark,
 }
 
 impl ClusterContext {
     pub const fn cluster_url(&self) -> &'static str {
         match self {
-            ClusterContext::Staging => "https://staging-tailscale-operator.taila1eba.ts.net",
             ClusterContext::Berkeley => "https://berkeley-tailscale-operator.taila1eba.ts.net",
+            ClusterContext::Staging => "https://staging-tailscale-operator.taila1eba.ts.net",
+            ClusterContext::VoltagePark => {
+                "https://voltage-park-tailscale-operator.taila1eba.ts.net"
+            }
         }
     }
 
     pub const fn headlamp_url(&self) -> &'static str {
         match self {
-            ClusterContext::Staging => "https://staging-headlamp.taila1eba.ts.net",
             ClusterContext::Berkeley => "https://berkeley-headlamp.taila1eba.ts.net",
+            ClusterContext::Staging => "https://staging-headlamp.taila1eba.ts.net",
+            ClusterContext::VoltagePark => "https://voltage-park-headlamp.taila1eba.ts.net",
         }
     }
 
     pub const fn docker_host(&self) -> &'static str {
         match self {
-            ClusterContext::Staging => "staging-docker.taila1eba.ts.net",
             ClusterContext::Berkeley => "berkeley-docker.taila1eba.ts.net",
+            ClusterContext::Staging => "staging-docker.taila1eba.ts.net",
+            ClusterContext::VoltagePark => "voltage-park-docker.taila1eba.ts.net",
         }
     }
 

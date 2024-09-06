@@ -4,6 +4,16 @@
 
 ### Features
 
+#### [Add Voltage Park as a Cluster option](https://github.com/Astera-org/obelisk/issues/480)
+
+You can now select `voltage-park` with the `--context` argument.
+
+To submit a job running on the VoltagePark cluster, issue:
+
+```
+launch submit --context voltage-park
+```
+
 #### [Add comment to list nodes with GPU information](https://github.com/Astera-org/obelisk/issues/263)
 
 The `launch list` subcommand has been modified to take an optional parameter that specifies what to list.
