@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+### Fixes
+
 ## [0.1.6] - 2024-09-06
 
 You can install this version through pixi with:
@@ -263,9 +269,11 @@ This makes it so that jobs of different users can't incorrectly use secrets that
 ### Features
 
 #### [Execution with Ray through RayJobs](https://github.com/Astera-org/obelisk/issues/152)
+## Unreleased
 
-There are now two methods of executing work on the cluster: regular Kubernetes jobs and [RayJobs](https://docs.ray.io/en/master/cluster/kubernetes/getting-started/rayjob-quick-start.html) (which are different from Ray jobs...).
-The `kubernetes` execution backend is used if the number of workers, which can be specified with `--workers <N>`, is 1.
+### Features
+
+### Fixes
 If the number of workers is more than 1, the `ray` execution backend is used.
 Note that in order to utilize the workers spawned for the RayJob, you must create work for those workers to run in your entrypoint python script.
 An example of this is provided in [examples/ray/](./examples/ray/).
@@ -281,6 +289,7 @@ A warning is issued when there are uncommitted changes or if commits have not ye
 
 None
 
+[unreleased]: https://github.com/Astera-org/obelisk/compare/launch/0.1.6...HEAD
 [0.1.6]: https://github.com/Astera-org/obelisk/compare/launch/0.1.5...launch/0.1.6
 [0.1.5]: https://github.com/Astera-org/obelisk/compare/launch/0.1.4...launch/0.1.5
 [0.1.4]: https://github.com/Astera-org/obelisk/compare/launch/0.1.3...launch/0.1.4
