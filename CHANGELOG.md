@@ -11,7 +11,7 @@
 You can install this version through pixi with:
 
 ```
-pixi global install --channel https://repo.prefix.dev/obelisk launch==<version>
+pixi global install --channel https://repo.prefix.dev/obelisk launch==0.1.6
 ```
 
 Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/<version>) or build it from source.
@@ -269,9 +269,6 @@ This makes it so that jobs of different users can't incorrectly use secrets that
 ### Features
 
 #### [Execution with Ray through RayJobs](https://github.com/Astera-org/obelisk/issues/152)
-## Unreleased
-
-### Features
 
 ### Fixes
 If the number of workers is more than 1, the `ray` execution backend is used.
@@ -284,10 +281,6 @@ The entrypoint always has 0 GPUs in this version of `launch`.
 
 The docker images built with `launch` are now annotated with the git hash.
 A warning is issued when there are uncommitted changes or if commits have not yet been pushed to a remote.
-
-### Fixes
-
-None
 
 [unreleased]: https://github.com/Astera-org/obelisk/compare/launch/0.1.6...HEAD
 [0.1.6]: https://github.com/Astera-org/obelisk/compare/launch/0.1.5...launch/0.1.6
