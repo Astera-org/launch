@@ -1,7 +1,7 @@
 package main
 
 import (
-	"astera.org/launch/cmd"
+	"astera-infra.com/launch/cmd"
 )
 
 func main() {

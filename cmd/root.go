@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"astera-infra.com/launch"
 	"github.com/spf13/cobra"
 )
 
@@ -26,7 +27,11 @@ func init() {
 	)
 
 	// Register the valid contexts
-	validContexts := []string{"berkeley", "staging", "voltage-park"}
+	validContexts := []string{
+		string(launch.Berkeley),
+		string(launch.Staging),
+		string(launch.VoltagePark),
+	}
 	rootCmd.RegisterFlagCompletionFunc(
 		"context",
 		func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {

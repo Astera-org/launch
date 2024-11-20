@@ -1,0 +1,14 @@
+{
+    "configurations": [
+        {
+            "name": "go",
+            "type": "go",
+            "request": "launch",
+            "cwd": "${workspaceFolder}",
+            "program": "${workspaceFolder}/main/",
+            "args": [
+                "list"
+            ]
+        }
+    ]
+}
