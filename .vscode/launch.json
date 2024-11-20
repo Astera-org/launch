@@ -1,13 +1,14 @@
 {
     "configurations": [
         {
-            "name": "go",
+            "name": "launch list nodes",
             "type": "go",
             "request": "launch",
             "cwd": "${workspaceFolder}",
             "program": "${workspaceFolder}/main/",
             "args": [
-                "list"
+                "list",
+                "nodes"
             ]
         }
     ]

@@ -84,3 +84,20 @@ func (k *Kubectl) argsPrefix() []string {
 		"--kubeconfig", os.DevNull,
 	}
 }
+
+func (k *Kubectl) Nodes() ([]corev1.Node, error) {
+	cmdArgs := append(k.argsPrefix(), "get", "nodes", "--output", "json")
+	cmd := exec.Command(kubectlExe, cmdArgs...)
+
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("kubectl error: %v: %s", err, output)
+	}
+
+	var nodeList corev1.NodeList
+	if err := json.Unmarshal(output, &nodeList); err != nil {
+		return nil, err
+	}
+
+	return nodeList.Items, nil
+}

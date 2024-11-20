@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
 	"astera-infra.com/launch"
 	"github.com/jedib0t/go-pretty/v6/table"
+	"github.com/jedib0t/go-pretty/v6/text"
 	"github.com/spf13/cobra"
 
 	batchv1 "k8s.io/api/batch/v1"
@@ -73,6 +75,15 @@ func computeUTCOffset() string {
 	return fmt.Sprintf("%+03d:%02d", hours, minutes)
 }
 
+func newTableWriter() table.Writer {
+	tw := table.NewWriter()
+	tableStyle := table.StyleDefault
+	tableStyle.Format.Header = text.FormatDefault
+	tw.SetStyle(tableStyle)
+	tw.SetOutputMirror(os.Stdout)
+	return tw
+}
+
 func listJobs(context launch.ClusterContext) error {
 	kubectl := launch.Kubectl{Server: context.ClusterURL()}
 	jobs, err := kubectl.Jobs()
@@ -89,8 +100,7 @@ func listJobs(context launch.ClusterContext) error {
 		jobName := pod.Labels["job-name"]
 		jobNameToPods[jobName] = append(jobNameToPods[jobName], &pod)
 	}
-	tw := table.NewWriter()
-	tw.SetOutputMirror(os.Stdout)
+	tw := newTableWriter()
 	tw.AppendHeader(table.Row{"name", fmt.Sprintf("created (%s)", utcOffset), "Job status", "launched by"})
 	for _, job := range jobs {
 		tw.AppendRow(table.Row{job.Name, formatTimestamp(job.CreationTimestamp), formatJobStatus(&job, jobNameToPods[job.Name]), determineUser(&job)})
@@ -100,15 +110,51 @@ func listJobs(context launch.ClusterContext) error {
 }
 
 func listNodes(context launch.ClusterContext) error {
-	fmt.Println("Listing nodes...")
+	kubectl := launch.Kubectl{Server: context.ClusterURL()}
+	nodes, err := kubectl.Nodes()
+	if err != nil {
+		return err
+	}
+
+	tw := newTableWriter()
+	tw.AppendHeader(table.Row{"node", "GPU", "GPU mem", "GPU count"})
+	for _, node := range nodes {
+		gpuProduct := node.Labels["nvidia.com/gpu.product"]
+		gpuMemory, err := formatGPUMemory(node.Labels["nvidia.com/gpu.memory"])
+		if err != nil {
+			return err
+		}
+		gpuCount := node.Labels["nvidia.com/gpu.count"]
+
+		tw.AppendRow(table.Row{
+			node.Name,
+			gpuProduct,
+			gpuMemory,
+			gpuCount,
+		})
+	}
+
+	tw.Render()
 	return nil
+}
+
+func formatGPUMemory(memoryStr string) (string, error) {
+	if memoryStr == "" {
+		return "", nil
+	}
+
+	mebibytes, err := strconv.ParseUint(memoryStr, 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse GPU memory from %q: %w", memoryStr, err)
+	}
+
+	return fmt.Sprintf("%d GiB", mebibytes/1024), nil
 }
 
 func formatTimestamp(timestamp metav1.Time) string {
 	return timestamp.Format("2006-01-02 15:04")
 }
 
-// determineUser extracts the user who launched the job from its metadata
 func determineUser(job *batchv1.Job) string {
 	if job == nil {
 		return ""
