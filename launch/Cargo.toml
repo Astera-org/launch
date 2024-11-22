@@ -27,3 +27,5 @@ time = { version = "0.3.36", features = [
 ] }
 time-local = "0.4.1"
 whoami = { version = "1.5.1", default-features = false }
+kubernetes = { git = "https://github.com/Astera-org/kubernetes-client-rust.git", tag = "v1.31.0", version = "1.31.0" }
+katib = { git = "https://github.com/Astera-org/katib-client-rust.git", tag = "v0.17.0", version = "0.17.0" }

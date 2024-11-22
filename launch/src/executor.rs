@@ -2,6 +2,9 @@ mod common;
 mod kubernetes;
 mod ray;
 
+use std::collections::HashMap;
+
+use ::kubernetes::models as km;
 pub use kubernetes::*;
 pub use ray::*;
 
@@ -40,7 +43,7 @@ impl<'a> ExecutionArgs<'a> {
         )
     }
 
-    fn annotations(&self) -> impl serde::Serialize {
+    fn annotations(&self) -> HashMap<String, String> {
         use std::borrow::Cow;
 
         use kubectl::annotation;
@@ -59,98 +62,92 @@ impl<'a> ExecutionArgs<'a> {
                 Cow::Owned(value.to_string()),
             )
         }))
+        .map(|(a, b)| (a.to_owned(), b.into_owned()))
         .collect::<std::collections::HashMap<_, _>>()
     }
 
-    fn volume_mounts(&self) -> impl serde::Serialize {
+    fn volume_mounts(&self) -> Option<Vec<km::V1VolumeMount>> {
         if self.databrickscfg_name.is_some() {
-            serde_json::json!([
-                {
-                    "name": "databrickscfg",
-                    "mountPath": DATABRICKSCFG_MOUNT,
-                    "subPath": ".databrickscfg",
-                    "readOnly": true
-                }
-            ])
+            Some(vec![km::V1VolumeMount {
+                name: "databrickscfg".to_owned(),
+                mount_path: DATABRICKSCFG_MOUNT.to_owned(),
+                sub_path: Some(".databrickscfg".to_owned()),
+                read_only: Some(true),
+                ..Default::default()
+            }])
         } else {
-            serde_json::json!([])
+            None
         }
     }
 
-    fn volumes(&self) -> impl serde::Serialize {
-        if let Some(name) = self.databrickscfg_name {
-            serde_json::json!([
-                {
-                    "name": "databrickscfg",
-                    "secret": {
-                        "secretName": name,
-                    }
-                }
-            ])
-        } else {
-            serde_json::json!([])
-        }
+    fn volumes(&self) -> Option<Vec<km::V1Volume>> {
+        self.databrickscfg_name.map(|name| {
+            vec![km::V1Volume {
+                name: "databrickscfg".to_owned(),
+                secret: Some(Box::new(km::V1SecretVolumeSource {
+                    secret_name: Some(name.to_owned()),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }]
+        })
     }
 
-    fn resources(&self) -> impl serde::Serialize {
+    fn resources(&self) -> Option<km::V1ResourceRequirements> {
         if self.gpus != 0 {
-            serde_json::json!({
-                "limits": {
-                    "nvidia.com/gpu": self.gpus
-                }
+            Some(km::V1ResourceRequirements {
+                limits: Some(
+                    [("nvidia.com/gpu".to_owned(), self.gpus.to_string())]
+                        .into_iter()
+                        .collect(),
+                ),
+                ..Default::default()
             })
         } else {
-            serde_json::json!(null)
+            None
         }
     }
 
-    fn affinity(&self) -> impl serde::Serialize {
+    fn affinity(&self) -> Option<km::V1Affinity> {
         let gpu_mem_mib = self
             .gpu_mem
             .map(|gpu_mem| gpu_mem.get::<bytes::mebibyte>())
             .unwrap_or_default();
         if gpu_mem_mib != 0 {
-            serde_json::json!({
-                "nodeAffinity": {
-                    "requiredDuringSchedulingIgnoredDuringExecution": {
-                        "nodeSelectorTerms": [
-                            {
-                                "matchExpressions": [
-                                    {
-                                        "key": "nvidia.com/gpu.memory",
-                                        // Sub 1 so that a user's request for `>= X` becomes `> (X - 1)`.
-                                        "operator": "Gt",
-                                        // `values` only accepts strings so integers must be converted to strings.
-                                        "values": [
-                                            gpu_mem_mib.saturating_sub(1).to_string()
-                                        ]
-                                    }
-                                ]
-                            }
-                        ]
-                    }
-                }
+            Some(km::V1Affinity {
+                node_affinity: Some(Box::new(km::V1NodeAffinity {
+                    required_during_scheduling_ignored_during_execution: Some(Box::new(
+                        km::V1NodeSelector {
+                            node_selector_terms: vec![km::V1NodeSelectorTerm {
+                                match_expressions: Some(vec![km::V1NodeSelectorRequirement {
+                                    key: "nvidia.com/gpu.memory".to_string(),
+                                    operator: "Gt".to_string(),
+                                    // Sub 1 so that a user's request for `>= X` becomes `> (X - 1)`.
+                                    values: Some(vec![gpu_mem_mib.saturating_sub(1).to_string()]),
+                                }]),
+                                ..Default::default()
+                            }],
+                        },
+                    )),
+                    ..Default::default()
+                })),
+                ..Default::default()
             })
         } else {
-            serde_json::json!(null)
+            None
         }
     }
 
-    fn env(&self) -> impl serde::Serialize {
-        #[derive(serde::Serialize)]
-        struct SetEnv<'a> {
-            name: &'a str,
-            value: &'a str,
-        }
-
-        impl<'a> SetEnv<'a> {
-            pub fn new(name: &'a str, value: &'a str) -> Self {
-                Self { name, value }
-            }
-        }
-
-        // Suppress warnings from GitPython (used by mlflow) about the git executable not being available.
-        [SetEnv::new("GIT_PYTHON_REFRESH", "QUIET")]
+    fn env(&self) -> Option<Vec<km::V1EnvVar>> {
+        Some(vec![
+            // Suppress warnings from GitPython (used by mlflow)
+            // about the git executable not being available.
+            km::V1EnvVar {
+                name: "GIT_PYTHON_REFRESH".to_owned(),
+                value: Some("quiet".to_owned()),
+                ..Default::default()
+            },
+        ])
     }
 }
 
