@@ -1,7 +1,6 @@
 {
     "git.openRepositoryInParentFolders": "always",
-    "rust-analyzer.rustfmt.overrideCommand": [
-        "rustfmt",
+    "rust-analyzer.rustfmt.extraArgs": [
         "+nightly"
     ],
     "[python]": {
