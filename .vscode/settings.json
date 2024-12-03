@@ -5,6 +5,10 @@
     ],
     "rust-analyzer.check.command": "clippy",
     "rust-analyzer.cargo.features": "all",
+    "[rust]": {
+        "editor.rulers": [100],
+        "rewrap.wrappingColumn": 100,
+    },
     "[python]": {
         "editor.defaultFormatter": "charliermarsh.ruff",
         "editor.codeActionsOnSave": {
