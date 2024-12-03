@@ -88,7 +88,7 @@ impl<'a> UserHostRef<'a> {
     }
 }
 
-impl<'a> fmt::Display for UserHostRef<'a> {
+impl fmt::Display for UserHostRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let user = self.user();
         match self.host() {

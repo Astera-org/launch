@@ -33,7 +33,7 @@ pub struct ExecutionArgs<'a> {
 
 pub const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";
 
-impl<'a> ExecutionArgs<'a> {
+impl ExecutionArgs<'_> {
     fn image(&self) -> String {
         format!(
             "{host}/{name}@{digest}",

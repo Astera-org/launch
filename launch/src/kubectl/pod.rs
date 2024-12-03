@@ -102,7 +102,7 @@ pub struct PodStatusDisplayMultiLine<'a> {
     indent: usize,
 }
 
-impl<'a> fmt::Display for PodStatusDisplayMultiLine<'a> {
+impl fmt::Display for PodStatusDisplayMultiLine<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let status = self.status;
         let indent = self.indent;
@@ -265,7 +265,6 @@ impl ContainerState {
 /// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#containerstatewaiting-v1-core
 #[derive(Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
-
 pub struct ContainerStateWaiting {
     /// Message regarding why the container is not yet running.
     #[serde(default)]
@@ -288,7 +287,6 @@ pub struct ContainerStateRunning {
 /// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#containerstateterminated-v1-core
 #[derive(Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
-
 pub struct ContainerStateTerminated {
     /// Container's ID in the format '<type>://<container_id>'
     #[serde(rename = "containerID")]

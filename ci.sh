@@ -18,6 +18,6 @@ if ! cargo "+$NIGHTLY" --version >/dev/null 2>&1; then
     fi
 fi
 
-cargo clippy --fix --allow-dirty --allow-staged
+cargo clippy --fix --allow-dirty --allow-staged --all-features --all-targets -- -D warnings
 cargo "+$NIGHTLY" fmt
 cargo test
