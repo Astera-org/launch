@@ -16,12 +16,15 @@ pub struct Bytes(u64);
 #[inline]
 const fn div_round(a: u64, b: std::num::NonZeroU64) -> u64 {
     let b = b.get();
-    if b == 1 {
-        a
-    } else {
-        // `a / b` is computable and `(a % b) * 2` can not overflow since `b >= 2`.
-        a / b + if (a % b) * 2 >= b { 1 } else { 0 }
-    }
+    // NOTE(mickvangelderen): This function should not overflow. To achieve this we have to use
+    // `wrapping_add`, even though the add should never wrap in practice. The compiler is unable to
+    // prove the following:
+    //
+    // 1. The only number to which adding `1` would cause an overflow is `MAX`.
+    // 2. For any `a >= 0` and `b >= 1`, `a / b == MAX` when `a = MAX` and `b = 1`.
+    // 3. In this case, `a % b >= b / 2 + b % 2` evaluates to `0 >= 0 + 1 == false`.
+    // 4. This means that when `a / b == MAX`, we will not add `1`, and so we can't overflow.
+    (a / b).wrapping_add((a % b >= b / 2 + b % 2) as _)
 }
 
 impl Bytes {
@@ -201,5 +204,58 @@ mod tests {
     #[test]
     fn round_on_conversion() {
         assert_eq!(Bytes::new::<byte>(700).unwrap().get::<kilobyte>(), 1);
+    }
+
+    #[test]
+    #[allow(clippy::identity_op, reason = "easier to interpret expressions")]
+    fn div_round_works() {
+        const X: u64 = u64::MAX;
+
+        fn f(a: u64, b: u64) -> u64 {
+            div_round(a, std::num::NonZeroU64::new(b).unwrap())
+        }
+
+        assert_eq!(f(0 + 0, 1), 0);
+        assert_eq!(f(0 + 1, 1), 1);
+        assert_eq!(f(0 + 2, 1), 2);
+        assert_eq!(f(X - 2, 1), X - 2);
+        assert_eq!(f(X - 1, 1), X - 1);
+        assert_eq!(f(X - 0, 1), X - 0);
+
+        assert_eq!(f(0 + 0, 2), 0);
+        assert_eq!(f(0 + 1, 2), 1);
+        assert_eq!(f(0 + 2, 2), 1);
+        assert_eq!(f(0 + 3, 2), 2);
+        assert_eq!(f(X - 3, 2), X / 2 - 1);
+        assert_eq!(f(X - 2, 2), X / 2);
+        assert_eq!(f(X - 1, 2), X / 2);
+        assert_eq!(f(X - 0, 2), X / 2 + 1);
+
+        assert_eq!(f(0 + 0, 3), 0);
+        assert_eq!(f(0 + 1, 3), 0);
+        assert_eq!(f(0 + 2, 3), 1);
+        assert_eq!(f(0 + 3, 3), 1);
+        assert_eq!(f(0 + 4, 3), 1);
+        assert_eq!(f(0 + 5, 3), 2);
+        assert_eq!(f(X - 5, 3), X / 3 - 2);
+        assert_eq!(f(X - 4, 3), X / 3 - 1);
+        assert_eq!(f(X - 3, 3), X / 3 - 1);
+        assert_eq!(f(X - 2, 3), X / 3 - 1);
+        assert_eq!(f(X - 1, 3), X / 3);
+        assert_eq!(f(X - 0, 3), X / 3);
+
+        assert_eq!(f(0 + 0, X - 1), 0);
+        assert_eq!(f(0 + 1, X - 1), 0);
+        assert_eq!(f(0 + 2, X - 1), 0);
+        assert_eq!(f(X - 2, X - 1), 1);
+        assert_eq!(f(X - 1, X - 1), 1);
+        assert_eq!(f(X - 0, X - 1), 1);
+
+        assert_eq!(f(0 + 0, X), 0);
+        assert_eq!(f(0 + 1, X), 0);
+        assert_eq!(f(0 + 2, X), 0);
+        assert_eq!(f(X - 2, X), 1);
+        assert_eq!(f(X - 1, X), 1);
+        assert_eq!(f(X - 0, X), 1);
     }
 }
