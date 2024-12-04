@@ -1,0 +1,15 @@
+objective:
+  type: minimize
+  goal: 0.001
+  objectiveMetricName: loss
+algorithm:
+  algorithmName: random
+parallelTrialCount: 2
+maxTrialCount: 5
+maxFailedTrialCount: 1
+parameters:
+  - name: nested.hyperparameter
+    parameterType: double
+    feasibleSpace:
+      min: "0.01"
+      max: "0.03"
