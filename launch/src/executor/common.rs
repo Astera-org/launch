@@ -2,9 +2,10 @@
 
 use std::{error::Error, fmt, thread, time};
 
+use kubernetes::models as k8s;
 use log::{debug, info, warn};
 
-use super::Result;
+use super::{ExecutionArgs, Result};
 use crate::kubectl::{self, PodStatus};
 
 pub const RAY_JOB_CREATION_TIMEOUT: time::Duration = time::Duration::from_secs(600);
@@ -112,4 +113,55 @@ pub fn wait_for_and_follow_pod_logs(
     kubectl.follow_pod_logs(namespace, name)?;
 
     Ok(())
+}
+
+pub(super) const PRIMARY_CONTAINER_NAME: &str = "main";
+
+pub(super) fn job_spec(
+    args: &ExecutionArgs,
+    container_command: Option<Vec<String>>,
+    container_args: Option<Vec<String>>,
+) -> k8s::V1Job {
+    let annotations = args.annotations();
+
+    k8s::V1Job {
+        api_version: Some("batch/v1".to_owned()),
+        kind: Some("Job".to_owned()),
+        metadata: Some(Box::new(k8s::V1ObjectMeta {
+            annotations: Some(annotations.clone()),
+            generate_name: Some(args.generate_name.to_owned()),
+            namespace: Some(args.job_namespace.to_owned()),
+            ..Default::default()
+        })),
+        spec: Some(Box::new(k8s::V1JobSpec {
+            // How many times to retry running the pod and all its containers, should any of them
+            // fail.
+            backoff_limit: Some(0),
+            template: Box::new(k8s::V1PodTemplateSpec {
+                metadata: Some(Box::new(k8s::V1ObjectMeta {
+                    annotations: Some(annotations.clone()),
+                    ..Default::default()
+                })),
+                spec: Some(Box::new(k8s::V1PodSpec {
+                    affinity: args.affinity().map(Box::new),
+                    containers: vec![k8s::V1Container {
+                        name: PRIMARY_CONTAINER_NAME.to_owned(),
+                        command: container_command,
+                        args: container_args,
+                        env: args.env(),
+                        image: Some(args.tagged_name_inside_cluster()),
+                        volume_mounts: args.volume_mounts(),
+                        resources: args.resources().map(Box::new),
+                        ..Default::default()
+                    }],
+                    restart_policy: Some("Never".to_owned()),
+                    volumes: args.volumes(),
+                    ..Default::default()
+                })),
+            }),
+            ttl_seconds_after_finished: Some(7 * 24 * 3600),
+            ..Default::default()
+        })),
+        ..Default::default()
+    }
 }

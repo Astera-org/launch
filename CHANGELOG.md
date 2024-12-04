@@ -4,6 +4,14 @@
 
 ### Features
 
+#### Submit hyperparameter searches on [Katib](https://www.kubeflow.org/docs/components/katib/user-guides/)
+
+Basic interface:
+
+```sh
+launch submit --katib <path to experiment spec YAML> -- python path/to/my_script.py --my_arg
+```
+
 ### Fixes
 
 ## [0.1.6] - 2024-09-06

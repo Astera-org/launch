@@ -1,10 +1,12 @@
 mod common;
+mod katib;
 mod kubernetes;
 mod ray;
 
 use std::collections::HashMap;
 
 use ::kubernetes::models as km;
+pub use katib::*;
 pub use kubernetes::*;
 pub use ray::*;
 
@@ -16,30 +18,38 @@ use crate::{
     Result,
 };
 
+pub struct ImageMetadata<'a> {
+    pub digest: &'a str,
+    /// name does not contain the `registry/` prefix
+    pub name: &'a str,
+    /// Needed because of https://github.com/Astera-org/obelisk/issues/705
+    pub entrypoint: &'a Vec<String>,
+}
+
 pub struct ExecutionArgs<'a> {
     pub context: &'a ClusterContext,
     pub job_namespace: &'a str,
     pub generate_name: &'a str,
     pub machine_user_host: UserHostRef<'a>,
     pub tailscale_user_host: Option<UserHostRef<'a>>,
-    pub image_name: &'a str,
-    pub image_digest: &'a str,
+    pub image_metadata: ImageMetadata<'a>,
     pub databrickscfg_name: Option<&'a str>,
-    pub command: &'a [String],
+    pub container_args: &'a [String],
     pub workers: u32,
     pub gpus: u32,
     pub gpu_mem: Option<Bytes>,
+    pub katib_experiment_spec: Option<::katib::models::V1beta1ExperimentSpec>,
 }
 
 pub const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";
 
 impl ExecutionArgs<'_> {
-    fn image(&self) -> String {
+    fn tagged_name_inside_cluster(&self) -> String {
         format!(
             "{host}/{name}@{digest}",
             host = self.context.docker_host_inside_cluster(),
-            name = self.image_name,
-            digest = self.image_digest
+            name = self.image_metadata.name,
+            digest = self.image_metadata.digest
         )
     }
 

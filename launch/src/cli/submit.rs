@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::{Args, ValueEnum};
 use constcat::concat;
 use home::home_dir;
@@ -6,7 +8,7 @@ use log::{debug, warn};
 use super::ClusterContext;
 use crate::{
     builder,
-    executor::{self, ExecutionArgs, Executor},
+    executor::{self, ExecutionArgs, Executor, ImageMetadata},
     git,
     kubectl::{self, is_rfc_1123_label},
     unit::bytes::{self, Bytes},
@@ -47,6 +49,13 @@ pub struct SubmitArgs {
     /// alphanumeric characters (a-z, 0-9) optionally separated by dashes (-).
     #[arg(long = "name-prefix", value_parser = expect_name_prefix)]
     pub name_prefix: Option<String>,
+
+    /// Path to a Katib experiment spec YAML file.
+    /// See https://pkg.go.dev/github.com/kubeflow/katib@v0.17.0/pkg/apis/controller/experiments/v1beta1#ExperimentSpec
+    /// and https://www.kubeflow.org/docs/components/katib/user-guides/hp-tuning/configure-experiment/
+    // TODO: use a custom type and point to the documentation for that type.
+    #[arg(long = "katib")]
+    pub katib_path: Option<PathBuf>,
 
     #[arg(long = "databrickscfg-mode", value_enum, default_value_t, help = concat!("Control whether a secret should be created from the submitting machine and mounted as a file at \"", executor::DATABRICKSCFG_MOUNT, "\" through a volume in the container of the submitted job."))]
     pub databrickscfg_mode: DatabricksCfgMode,
@@ -96,13 +105,32 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         databrickscfg_mode,
         name_prefix,
         command,
+        katib_path,
     } = args;
-
-    let image_name = "fluid";
 
     if command.is_empty() {
         return Err("Please provide the command to run".into());
     }
+
+    let current_dir = std::env::current_dir()?;
+    let image_name = std::path::Path::new(&current_dir)
+        .file_name()
+        .ok_or("launch")?
+        .to_str()
+        .ok_or("Current directory name contains invalid UTF-8")?;
+
+    let katib_experiment_spec = katib_path.as_ref().map(|path| {
+        std::fs::read_to_string(path).map_err(|error| {
+            format!("Failed to read Katib experiment spec file {path:?}: {error}")
+        }).and_then(|contents| {
+            use ::katib::models::V1beta1ExperimentSpec;
+            serde_yaml::from_str::<V1beta1ExperimentSpec>(&contents).map_err(|err| {
+                format!(
+                    "Failed to parse Katib experiment spec file {path:?}. See `launch submit --help` for format: {err}"
+                )
+            }
+        )})
+    }).transpose()?;
 
     let machine_user_host = super::common::machine_user_host();
     let tailscale_user_host = super::common::tailscale_user_host();
@@ -123,18 +151,23 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         warn!("Please ensure that your commit is pushed to a remote so we can reproduce the results. This warning may become an error in the future. You can disable this check by passing `--allow-unpushed`.");
     }
 
-    let tag = format!("{host}/{image_name}:latest", host = context.docker_host());
+    let image_name_with_tag = format!(
+        "{host}/{image_name}:{user}-{rand:x}",
+        host = context.docker_host(),
+        user = user.as_deref().unwrap_or("unknown-user"),
+        rand = rand::random::<u32>()
+    );
     let build_backend = match builder {
         BuilderArg::Docker => &builder::DockerBuilder as &dyn builder::Builder,
         BuilderArg::Kaniko => &builder::KanikoBuilder as &dyn builder::Builder,
     };
 
-    let image_digest = build_backend
-        .build(builder::BuildArgs {
-            git_commit_hash: &git_info.commit_hash,
-            image_tag: &tag,
-        })?
-        .image_digest;
+    let build_output = build_backend.build(builder::BuildArgs {
+        git_commit_hash: &git_info.commit_hash,
+        image_name_with_tag: &image_name_with_tag,
+    })?;
+
+    let image_digest = build_output.image_digest;
     debug!("image_digest: {image_digest:?}");
 
     let home_dir = home_dir().ok_or("failed to determine home directory")?;
@@ -151,7 +184,7 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
             Err(error) => {
                 let error_string = format!(
                     "Databricks configuration not found at {path:?}: {error}. \
-                    Please follow the instructions at https://github.com/Astera-org/obelisk/blob/master/fluid/README.md#logging-to-mlflow."
+                    Please follow the instructions at https://github.com/Astera-org/obelisk/blob/master/research/README.md#logging-to-mlflow."
                 );
                 if databrickscfg_mode == DatabricksCfgMode::Require {
                     return Err(error_string.into());
@@ -185,10 +218,13 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
 
     enum ExecutionBackendKind {
         Job,
+        Katib,
         RayJob,
     }
 
-    let execution_backend_kind = if workers > 1 {
+    let execution_backend_kind = if katib_path.is_some() {
+        ExecutionBackendKind::Katib
+    } else if workers > 1 {
         ExecutionBackendKind::RayJob
     } else {
         ExecutionBackendKind::Job
@@ -210,6 +246,7 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         if name.is_empty() {
             name.push_str(match execution_backend_kind {
                 ExecutionBackendKind::Job => "job",
+                ExecutionBackendKind::Katib => "katib",
                 ExecutionBackendKind::RayJob => "ray-job",
             });
             name.push('-');
@@ -220,7 +257,14 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
 
     let execution_backend: &dyn Executor = match execution_backend_kind {
         ExecutionBackendKind::Job => &executor::KubernetesExecutionBackend,
+        ExecutionBackendKind::Katib => &executor::KatibExecutionBackend,
         ExecutionBackendKind::RayJob => &executor::RayExecutionBackend,
+    };
+
+    let image_metadata = ImageMetadata {
+        digest: image_digest.as_ref(),
+        name: image_name,
+        entrypoint: build_output.entrypoint.as_ref(),
     };
 
     execution_backend.execute(ExecutionArgs {
@@ -229,13 +273,13 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         generate_name: &generate_name,
         machine_user_host: machine_user_host.to_ref(),
         tailscale_user_host: tailscale_user_host.as_ref().map(UserHost::to_ref),
-        image_name,
-        image_digest: &image_digest,
+        image_metadata,
         databrickscfg_name: databrickscfg_name.as_deref(),
-        command: &command,
+        container_args: &command,
         workers,
         gpus,
         gpu_mem,
+        katib_experiment_spec,
     })?;
 
     Ok(())

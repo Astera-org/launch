@@ -6,11 +6,11 @@ use super::{ExecutionArgs, ExecutionOutput, Executor, Result};
 use crate::{bash_escape, executor::common, kubectl::ResourceHandle};
 
 fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
-    let image = args.image();
+    let image = args.tagged_name_inside_cluster();
     let annotations = args.annotations();
 
     // Ray parses this string with `shlex`. See https://github.com/Astera-org/obelisk/issues/329.
-    let entrypoint = bash_escape::quote_join(args.command.iter().map(String::as_str));
+    let entrypoint = bash_escape::quote_join(args.container_args.iter().map(String::as_str));
 
     serde_json::json!({
         "apiVersion": "ray.io/v1",

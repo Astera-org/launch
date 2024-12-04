@@ -1,58 +1,12 @@
 //! The kubernetes job backend implementation.
 
-use kubernetes::models as km;
 use log::info;
 
 use super::{ExecutionArgs, ExecutionOutput, Executor, Result};
 use crate::{
-    executor::common::{self},
+    executor::common::{self, job_spec},
     kubectl::ResourceHandle,
 };
-
-fn job_spec(args: &ExecutionArgs) -> km::V1Job {
-    let annotations = args.annotations();
-
-    km::V1Job {
-        api_version: Some("batch/v1".to_owned()),
-        kind: Some("Job".to_owned()),
-        metadata: Some(Box::new(km::V1ObjectMeta {
-            annotations: Some(annotations.clone()),
-            generate_name: Some(args.generate_name.to_owned()),
-            namespace: Some(args.job_namespace.to_owned()),
-            ..Default::default()
-        })),
-        spec: Some(Box::new(km::V1JobSpec {
-            // How many times to retry running the pod and all its containers, should any of them
-            // fail.
-            backoff_limit: Some(0),
-            template: Box::new(km::V1PodTemplateSpec {
-                metadata: Some(Box::new(km::V1ObjectMeta {
-                    annotations: Some(annotations.clone()),
-                    ..Default::default()
-                })),
-                spec: Some(Box::new(km::V1PodSpec {
-                    affinity: args.affinity().map(Box::new),
-                    containers: vec![km::V1Container {
-                        name: "main".to_owned(),
-                        // Using args rather than command keeps the ENTRYPOINT intact.
-                        args: Some(args.command.to_owned()),
-                        env: args.env(),
-                        image: Some(args.image()),
-                        volume_mounts: args.volume_mounts(),
-                        resources: args.resources().map(Box::new),
-                        ..Default::default()
-                    }],
-                    restart_policy: Some("Never".to_owned()),
-                    volumes: args.volumes(),
-                    ..Default::default()
-                })),
-            }),
-            ttl_seconds_after_finished: Some(7 * 24 * 3600),
-            ..Default::default()
-        })),
-        ..Default::default()
-    }
-}
 
 pub struct KubernetesExecutionBackend;
 
@@ -62,7 +16,7 @@ impl Executor for KubernetesExecutionBackend {
         let headlamp_url = args.context.headlamp_url();
 
         let (job_namespace, job_name) = {
-            let job_spec = job_spec(&args);
+            let job_spec = job_spec(&args, None, Some(args.container_args.to_vec()));
             let ResourceHandle { namespace, name } =
                 kubectl.create(&serde_json::to_string(&job_spec)?)?;
             assert_eq!(args.job_namespace, namespace);

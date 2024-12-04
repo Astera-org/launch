@@ -39,6 +39,14 @@ impl ClusterContext {
         }
     }
 
+    pub const fn katib_url(&self) -> &'static str {
+        match self {
+            ClusterContext::Berkeley => "http://berkeley-katib.taila1eba.ts.net/katib",
+            ClusterContext::Staging => "http://staging-katib.taila1eba.ts.net/katib",
+            ClusterContext::VoltagePark => "http://voltage-park-katib.taila1eba.ts.net/katib",
+        }
+    }
+
     pub const fn docker_host(&self) -> &'static str {
         match self {
             ClusterContext::Berkeley => "berkeley-docker.taila1eba.ts.net",
@@ -48,7 +56,7 @@ impl ClusterContext {
     }
 
     pub const fn docker_host_inside_cluster(&self) -> &'static str {
-        // Configured in `k8s-cluster.yml` under `containerd_registries_mirrors`.
+        // Configured in talos machine config as a containerd registry mirror.
         "astera-infra.com"
     }
 
