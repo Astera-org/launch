@@ -3,45 +3,107 @@
 use ::katib::models as km;
 use ::kubernetes::models as k8s;
 use itertools::Itertools;
+use katib::models::{
+    V1beta1AlgorithmSetting, V1beta1AlgorithmSpec, V1beta1FeasibleSpace, V1beta1MetricStrategy,
+    V1beta1ObjectiveSpec, V1beta1ParameterSpec,
+};
 use log::info;
 
 use super::{ExecutionArgs, ExecutionOutput, Executor, Result};
 use crate::{executor::common, kubectl::ResourceHandle};
 
-fn sanitize_param_name_for_reference(param_name: &str) -> String {
+fn sanitize_param_name(param_name: &str) -> String {
+    // '.' is special because it's used in the template substitution that katib does on
+    // the args.
     param_name.replace('.', "__")
 }
 
+impl From<&crate::katib::MetricStrategyType> for String {
+    fn from(strategy_type: &crate::katib::MetricStrategyType) -> Self {
+        match strategy_type {
+            crate::katib::MetricStrategyType::Min => "min",
+            crate::katib::MetricStrategyType::Max => "max",
+            crate::katib::MetricStrategyType::Latest => "latest",
+        }
+        .to_owned()
+    }
+}
+
+impl From<&crate::katib::ObjectiveType> for String {
+    fn from(obj_type: &crate::katib::ObjectiveType) -> Self {
+        match obj_type {
+            crate::katib::ObjectiveType::Minimize => "minimize",
+            crate::katib::ObjectiveType::Maximize => "maximize",
+        }
+        .to_owned()
+    }
+}
+
+impl crate::katib::FeasibleSpace {
+    pub fn parameter_type_string(&self) -> String {
+        match self {
+            Self::Double { .. } => "double",
+            Self::Int { .. } => "int",
+            Self::Discrete { .. } => "discrete",
+            Self::Categorical { .. } => "categorical",
+        }
+        .to_owned()
+    }
+}
+
+impl From<&crate::katib::FeasibleSpace> for V1beta1FeasibleSpace {
+    fn from(feasible_space: &crate::katib::FeasibleSpace) -> Self {
+        use crate::katib::FeasibleSpace;
+        match feasible_space {
+            FeasibleSpace::Double { min, max } => Self {
+                max: Some(max.to_string()),
+                min: Some(min.to_string()),
+                list: None,
+                step: None,
+            },
+            FeasibleSpace::Int { min, max } => Self {
+                max: Some(max.to_string()),
+                min: Some(min.to_string()),
+                list: None,
+                step: None,
+            },
+            FeasibleSpace::Discrete { list } => Self {
+                max: None,
+                min: None,
+                list: Some(list.iter().map(|x| x.to_string()).collect()),
+                step: None,
+            },
+            FeasibleSpace::Categorical { list } => Self {
+                max: None,
+                min: None,
+                list: Some(list.clone()),
+                step: None,
+            },
+        }
+    }
+}
+
 fn experiment(args: &mut ExecutionArgs) -> Result<km::V1beta1Experiment> {
-    let mut exp_spec = args
+    let input_exp_spec = args
         .katib_experiment_spec
         .take()
         .ok_or("args.katib_experiment_spec must be set when calling KatibExecutionBackend")?;
+
     let container_args = {
-        let param_args = exp_spec
-            .parameters
-            .as_ref()
-            .ok_or("Katib experiment spec missing parameters")?
-            .iter()
-            .map(|p| {
-                p.name.as_deref().map(|name| {
-                    // Respect the name from the spec for the flag name, but
-                    // use the sanitized reference name in the value so that Katib can
-                    // do the substitution.
-                    format!(
-                        "--{name}=${{trialParameters.{reference}}}",
-                        reference = sanitize_param_name_for_reference(name)
-                    )
-                })
-            });
+        let param_args = input_exp_spec.parameters.iter().map(|p| {
+            let name = p.name.as_str();
+            // Use the sanitized name in the value so that Katib can do the substitution.
+            format!(
+                "--{name}=${{trialParameters.{sanitized}}}",
+                sanitized = sanitize_param_name(name)
+            )
+        });
 
         args.container_args
             .iter()
             .cloned()
-            .map(Some)
             .chain(param_args)
-            .collect::<Option<Vec<String>>>()
-            .ok_or("there is a parameter with no name")?
+            .collect()
     };
     let mut trial_spec = common::job_spec(
         args,
@@ -52,30 +114,66 @@ fn experiment(args: &mut ExecutionArgs) -> Result<km::V1beta1Experiment> {
     );
     // Katib doesn't allow metadata in the trial spec
     trial_spec.metadata = None;
-    let trial_spec_json_value = serde_json::to_value(trial_spec)?;
-    exp_spec
-        .parameters
-        .as_mut()
-        .ok_or("Katib experiment spec missing parameters")?
-        .iter_mut()
-        .for_each(|p| p.name = p.name.as_deref().map(sanitize_param_name_for_reference));
-    let trial_parameters = exp_spec
-        .parameters
-        .as_ref()
-        .ok_or("Katib experiment spec missing parameters")?
-        .iter()
-        .map(|p| km::V1beta1TrialParameterSpec {
-            name: p.name.clone(),
-            reference: p.name.clone(),
+
+    let exp_spec = km::V1beta1ExperimentSpec {
+        objective: Some(Box::new(V1beta1ObjectiveSpec {
+            _type: Some((&input_exp_spec.objective.type_).into()),
+            goal: input_exp_spec.objective.goal,
+            additional_metric_names: input_exp_spec.objective.additional_metric_names,
+            objective_metric_name: Some(input_exp_spec.objective.objective_metric_name),
+            metric_strategies: input_exp_spec.objective.metric_strategies.map(|vec| {
+                vec.iter()
+                    .map(|strategy| V1beta1MetricStrategy {
+                        name: Some(strategy.name.clone()),
+                        value: Some((&strategy.value).into()),
+                    })
+                    .collect()
+            }),
+        })),
+        algorithm: Some(Box::new(V1beta1AlgorithmSpec {
+            algorithm_name: Some(input_exp_spec.algorithm.algorithm_name),
+            algorithm_settings: input_exp_spec.algorithm.algorithm_settings.map(|vec| {
+                vec.iter()
+                    .map(|setting| V1beta1AlgorithmSetting {
+                        name: Some(setting.name.clone()),
+                        value: Some(setting.value.clone()),
+                    })
+                    .collect()
+            }),
+        })),
+        parallel_trial_count: Some(input_exp_spec.parallel_trial_count),
+        max_trial_count: Some(input_exp_spec.max_trial_count),
+        max_failed_trial_count: Some(input_exp_spec.max_failed_trial_count as i32),
+        parameters: Some(
+            input_exp_spec
+                .parameters
+                .iter()
+                .map(|param| V1beta1ParameterSpec {
+                    feasible_space: Some(Box::new((&param.feasible_space).into())),
+                    name: Some(sanitize_param_name(&param.name)),
+                    parameter_type: Some(param.feasible_space.parameter_type_string()),
+                })
+                .collect(),
+        ),
+        trial_template: Some(Box::new(km::V1beta1TrialTemplate {
+            primary_container_name: Some(common::PRIMARY_CONTAINER_NAME.to_owned()),
+            trial_spec: Some(serde_json::to_value(trial_spec)?),
+            trial_parameters: Some(
+                input_exp_spec
+                    .parameters
+                    .iter()
+                    .map(|p| km::V1beta1TrialParameterSpec {
+                        name: Some(sanitize_param_name(&p.name)),
+                        reference: Some(sanitize_param_name(&p.name)),
+                        ..Default::default()
+                    })
+                    .collect_vec(),
+            ),
             ..Default::default()
-        })
-        .collect_vec();
-    exp_spec.trial_template = Some(Box::new(km::V1beta1TrialTemplate {
-        primary_container_name: Some(common::PRIMARY_CONTAINER_NAME.to_owned()),
-        trial_spec: Some(trial_spec_json_value),
-        trial_parameters: Some(trial_parameters),
+        })),
         ..Default::default()
-    }));
+    };
+
     Ok(km::V1beta1Experiment {
         api_version: Some("kubeflow.org/v1beta1".to_owned()), // https://github.com/kubeflow/katib/blob/2b41ae62ab3905984e02123218351a703c03bf56/sdk/python/v1beta1/kubeflow/katib/constants/constants.py#L28
         kind: Some("Experiment".to_owned()), // https://github.com/kubeflow/katib/blob/2b41ae62ab3905984e02123218351a703c03bf56/sdk/python/v1beta1/kubeflow/katib/constants/constants.py#L29

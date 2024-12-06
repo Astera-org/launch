@@ -4,6 +4,7 @@ pub(crate) mod builder;
 pub(crate) mod docker;
 pub(crate) mod executor;
 pub(crate) mod git;
+pub(crate) mod katib;
 pub(crate) mod kubectl;
 pub(crate) mod process;
 pub(crate) mod tailscale;

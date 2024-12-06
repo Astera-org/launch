@@ -12,6 +12,7 @@ pub use ray::*;
 
 use crate::{
     cli::ClusterContext,
+    katib::ExperimentSpec,
     kubectl::{self},
     unit::bytes::{self, Bytes},
     user_host::UserHostRef,
@@ -38,7 +39,7 @@ pub struct ExecutionArgs<'a> {
     pub workers: u32,
     pub gpus: u32,
     pub gpu_mem: Option<Bytes>,
-    pub katib_experiment_spec: Option<::katib::models::V1beta1ExperimentSpec>,
+    pub katib_experiment_spec: Option<ExperimentSpec>,
 }
 
 pub const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";

@@ -9,7 +9,7 @@ use super::ClusterContext;
 use crate::{
     builder,
     executor::{self, ExecutionArgs, Executor, ImageMetadata},
-    git,
+    git, katib,
     kubectl::{self, is_rfc_1123_label},
     unit::bytes::{self, Bytes},
     user_host::UserHost,
@@ -51,9 +51,12 @@ pub struct SubmitArgs {
     pub name_prefix: Option<String>,
 
     /// Path to a Katib experiment spec YAML file.
-    /// See https://pkg.go.dev/github.com/kubeflow/katib@v0.17.0/pkg/apis/controller/experiments/v1beta1#ExperimentSpec
-    /// and https://www.kubeflow.org/docs/components/katib/user-guides/hp-tuning/configure-experiment/
-    // TODO: use a custom type and point to the documentation for that type.
+    /// The valid fields are documented here, but note that trialTemplate is not allowed since
+    /// the launch tool constructs that for you:
+    /// https://www.kubeflow.org/docs/components/katib/user-guides/hp-tuning/configure-experiment/
+    /// Any parameter listed in the config file will be passed as a command line arg to the given
+    /// command. E.g. if ther is a parameter named "foo.bar", then each trial of the experiment
+    /// will get "--foo.bar=<param value for that trial>" appended to the command.
     #[arg(long = "katib")]
     pub katib_path: Option<PathBuf>,
 
@@ -119,18 +122,22 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         .to_str()
         .ok_or("Current directory name contains invalid UTF-8")?;
 
-    let katib_experiment_spec = katib_path.as_ref().map(|path| {
-        std::fs::read_to_string(path).map_err(|error| {
-            format!("Failed to read Katib experiment spec file {path:?}: {error}")
-        }).and_then(|contents| {
-            use ::katib::models::V1beta1ExperimentSpec;
-            serde_yaml::from_str::<V1beta1ExperimentSpec>(&contents).map_err(|err| {
-                format!(
-                    "Failed to parse Katib experiment spec file {path:?}. See `launch submit --help` for format: {err}"
-                )
-            }
-        )})
-    }).transpose()?;
+    let katib_experiment_spec = katib_path
+        .as_ref()
+        .map(|path| {
+            std::fs::read_to_string(path)
+                .map_err(|error| {
+                    format!("Failed to read Katib experiment spec file {path:?}: {error}")
+                })
+                .and_then(|contents| {
+                    serde_yaml::from_str::<katib::ExperimentSpec>(&contents).map_err(|err| {
+                        format!(
+                            "Failed to parse Katib experiment spec file {path:?}. See `launch submit --help` for format: {err}"
+                        )
+                    })
+                })
+        })
+        .transpose()?;
 
     let machine_user_host = super::common::machine_user_host();
     let tailscale_user_host = super::common::tailscale_user_host();
