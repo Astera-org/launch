@@ -105,13 +105,7 @@ fn experiment(args: &mut ExecutionArgs) -> Result<km::V1beta1Experiment> {
             .chain(param_args)
             .collect()
     };
-    let mut trial_spec = common::job_spec(
-        args,
-        // NOTE: we intentionally set command here.
-        // See https://github.com/Astera-org/obelisk/issues/705
-        Some(args.image_metadata.entrypoint.to_owned()),
-        Some(container_args),
-    );
+    let mut trial_spec = common::job_spec(args, None, Some(container_args));
     // Katib doesn't allow metadata in the trial spec
     trial_spec.metadata = None;
 

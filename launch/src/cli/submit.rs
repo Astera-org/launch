@@ -160,7 +160,7 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
 
     let image_name_with_tag = format!(
         "{host}/{image_name}:{user}-{rand:x}",
-        host = context.docker_host(),
+        host = context.container_registry_host(),
         user = user.as_deref().unwrap_or("unknown-user"),
         rand = rand::random::<u32>()
     );
@@ -271,7 +271,6 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
     let image_metadata = ImageMetadata {
         digest: image_digest.as_ref(),
         name: image_name,
-        entrypoint: build_output.entrypoint.as_ref(),
     };
 
     execution_backend.execute(ExecutionArgs {

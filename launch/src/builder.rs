@@ -13,7 +13,6 @@ pub struct BuildArgs<'a> {
 
 pub struct BuildOutput {
     pub image_digest: String,
-    pub entrypoint: Vec<String>,
 }
 
 pub trait Builder {

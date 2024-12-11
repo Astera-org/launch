@@ -23,8 +23,6 @@ pub struct ImageMetadata<'a> {
     pub digest: &'a str,
     /// name does not contain the `registry/` prefix
     pub name: &'a str,
-    /// Needed because of https://github.com/Astera-org/obelisk/issues/705
-    pub entrypoint: &'a Vec<String>,
 }
 
 pub struct ExecutionArgs<'a> {
@@ -48,7 +46,7 @@ impl ExecutionArgs<'_> {
     fn tagged_name_inside_cluster(&self) -> String {
         format!(
             "{host}/{name}@{digest}",
-            host = self.context.docker_host_inside_cluster(),
+            host = self.context.container_registry_host(),
             name = self.image_metadata.name,
             digest = self.image_metadata.digest
         )

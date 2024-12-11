@@ -73,16 +73,3 @@ pub fn build_and_push(args: BuildArgs) -> Result<BuildOutput> {
         image_digest: metadata.containerimage_digest,
     })
 }
-
-pub fn entrypoint(image_ref: &str) -> Result<Option<Vec<String>>> {
-    let output = process::command!(
-        "docker",
-        "inspect",
-        "--format",
-        "{{json .Config.Entrypoint}}",
-        image_ref,
-    )
-    .output()?;
-
-    Ok(Some(serde_json::from_slice(&output.stdout)?))
-}

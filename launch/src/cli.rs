@@ -47,17 +47,12 @@ impl ClusterContext {
         }
     }
 
-    pub const fn docker_host(&self) -> &'static str {
+    pub const fn container_registry_host(&self) -> &'static str {
         match self {
             ClusterContext::Berkeley => "berkeley-docker.taila1eba.ts.net",
             ClusterContext::Staging => "staging-docker.taila1eba.ts.net",
             ClusterContext::VoltagePark => "voltage-park-docker.taila1eba.ts.net",
         }
-    }
-
-    pub const fn docker_host_inside_cluster(&self) -> &'static str {
-        // Configured in talos machine config as a containerd registry mirror.
-        "astera-infra.com"
     }
 
     pub fn kubectl(&self) -> Kubectl {
