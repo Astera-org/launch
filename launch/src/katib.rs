@@ -14,13 +14,14 @@ pub enum MetricStrategyType {
 }
 
 #[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MetricStrategy {
     pub name: String,
     pub value: MetricStrategyType,
 }
 
 #[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Objective {
     #[serde(rename = "type")]
     pub type_: ObjectiveType,
@@ -31,13 +32,14 @@ pub struct Objective {
 }
 
 #[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AlgorithmSetting {
     pub name: String,
     pub value: String,
 }
 
 #[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Algorithm {
     pub algorithm_name: String,
     pub algorithm_settings: Option<Vec<AlgorithmSetting>>,
@@ -60,7 +62,7 @@ pub enum FeasibleSpace {
 }
 
 #[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Parameter {
     pub name: String,
     #[serde(flatten)]
@@ -71,7 +73,9 @@ pub struct Parameter {
 /// Katib API so that we can enforce certain fields are required or prohibited at deserialization
 /// time, which means better error messages and it simplifies the rest of the code that consumes
 /// this type.
-/// Notably this type does not contain a trialTemplate, since the code in launch constructs that.
+/// Unlike the Katib API, this type does not contain / allow:
+///  - trialTemplate, since the code in launch constructs that.
+///  - metricsCollectorSpec, since we only support TensorBoard at the default path.
 ///
 /// This a subset of the Katib API's ExperimentSpec:
 /// https://pkg.go.dev/github.com/kubeflow/katib@v0.17.0/pkg/apis/controller/experiments/v1beta1#ExperimentSpec
@@ -80,7 +84,7 @@ pub struct Parameter {
 ///
 /// We use camelCase for all serialized field names to match the official katib docs and examples.
 #[derive(Debug, serde::Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct ExperimentSpec {
     pub objective: Objective,
     pub algorithm: Algorithm,

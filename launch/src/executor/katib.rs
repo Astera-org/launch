@@ -4,8 +4,9 @@ use ::katib::models as km;
 use ::kubernetes::models as k8s;
 use itertools::Itertools;
 use katib::models::{
-    V1beta1AlgorithmSetting, V1beta1AlgorithmSpec, V1beta1FeasibleSpace, V1beta1MetricStrategy,
-    V1beta1ObjectiveSpec, V1beta1ParameterSpec,
+    V1beta1AlgorithmSetting, V1beta1AlgorithmSpec, V1beta1CollectorSpec, V1beta1FeasibleSpace,
+    V1beta1FileSystemPath, V1beta1MetricStrategy, V1beta1MetricsCollectorSpec,
+    V1beta1ObjectiveSpec, V1beta1ParameterSpec, V1beta1SourceSpec,
 };
 use log::info;
 
@@ -83,6 +84,11 @@ impl From<&crate::katib::FeasibleSpace> for V1beta1FeasibleSpace {
     }
 }
 
+// According to the Katib docs this is the default for the TensorFlowEvent collector, but we
+// specify it explicitly for clarity.
+const TENSORBOARD_DIR: &str = "/var/log/katib/tfevent/";
+const TENSORBOARD_DIR_FLAG: &str = "--tensorboard_dir";
+
 fn experiment(args: &mut ExecutionArgs) -> Result<km::V1beta1Experiment> {
     let input_exp_spec = args
         .katib_experiment_spec
@@ -103,6 +109,7 @@ fn experiment(args: &mut ExecutionArgs) -> Result<km::V1beta1Experiment> {
             .iter()
             .cloned()
             .chain(param_args)
+            .chain([TENSORBOARD_DIR_FLAG.to_owned(), TENSORBOARD_DIR.to_owned()])
             .collect()
     };
     let mut trial_spec = common::job_spec(args, None, Some(container_args));
@@ -134,6 +141,21 @@ fn experiment(args: &mut ExecutionArgs) -> Result<km::V1beta1Experiment> {
                     })
                     .collect()
             }),
+        })),
+        metrics_collector_spec: Some(Box::new(V1beta1MetricsCollectorSpec {
+            collector: Some(Box::new(V1beta1CollectorSpec {
+                kind: Some("TensorFlowEvent".to_owned()),
+                custom_collector: None,
+            })),
+            source: Some(Box::new(V1beta1SourceSpec {
+                file_system_path: Some(Box::new(V1beta1FileSystemPath {
+                    path: Some(TENSORBOARD_DIR.to_owned()),
+                    kind: Some("Directory".to_owned()),
+                    format: None,
+                })),
+                filter: None,
+                http_get: None,
+            })),
         })),
         parallel_trial_count: Some(input_exp_spec.parallel_trial_count),
         max_trial_count: Some(input_exp_spec.max_trial_count),
