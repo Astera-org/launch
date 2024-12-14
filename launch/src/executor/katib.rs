@@ -185,6 +185,7 @@ fn experiment(args: &mut ExecutionArgs) -> Result<km::V1beta1Experiment> {
                     })
                     .collect_vec(),
             ),
+            retain: Some(true),
             ..Default::default()
         })),
         ..Default::default()
