@@ -1,6 +1,8 @@
 use core::fmt;
 
-use crate::{process, Result};
+use log::debug;
+
+use crate::{container_image::ContainerImage, process, Result};
 
 /// Partial implementation of the JSON emitted by the `--metadata-file` option of `docker build`.
 /// See https://docs.docker.com/reference/cli/docker/buildx/build/#metadata-file.
@@ -31,45 +33,41 @@ impl fmt::Display for Platform {
 
 pub struct BuildArgs<'a> {
     pub git_commit_hash: &'a str,
-    pub image_tag: &'a str,
+    pub image: ContainerImage<'a>,
     pub platform: Platform,
 }
 
-pub struct BuildOutput {
-    pub image_digest: String,
+pub struct BuildOutput<'a> {
+    pub image: ContainerImage<'a>,
 }
 
 pub fn build_and_push(args: BuildArgs) -> Result<BuildOutput> {
-    let metadata_filepath = crate::temp_path::tmp_json_path();
+    let BuildArgs {
+        image,
+        git_commit_hash,
+        platform,
+    } = args;
+    debug!("Building image: {:?}", image);
 
+    let metadata_filepath = crate::temp_path::tmp_json_path();
     process::command!(
         "docker",
         "buildx",
         "build",
         ".",
-        "--metadata-file",
-        metadata_filepath,
-        "--tag",
-        args.image_tag,
-        "--build-arg",
-        format!("COMMIT_HASH={}", args.git_commit_hash),
-        "--platform",
-        args.platform.as_str(),
+        format!("--metadata-file={}", metadata_filepath.display()),
+        format!("--tag={}", image.image_url()),
+        format!("--build-arg=COMMIT_HASH={git_commit_hash}"),
+        format!("--platform={platform}"),
         // https://github.com/opencontainers/image-spec/blob/main/annotations.md
-        "--annotation",
-        format!(
-            "org.opencontainers.image.revision={revision}",
-            revision = args.git_commit_hash
-        ),
+        format!("--annotation=org.opencontainers.image.revision={git_commit_hash}"),
         "--push",
     )
     .status()?;
 
     let metadata_string = std::fs::read_to_string(&metadata_filepath)?;
-
     let metadata: MetadataFile = serde_json::from_str(&metadata_string)?;
-
-    Ok(BuildOutput {
-        image_digest: metadata.containerimage_digest,
-    })
+    let mut image = image.clone();
+    image.digest = Some(metadata.containerimage_digest);
+    Ok(BuildOutput { image })
 }

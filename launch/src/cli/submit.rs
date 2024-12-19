@@ -8,9 +8,10 @@ use log::{debug, warn};
 use super::ClusterContext;
 use crate::{
     builder,
-    executor::{self, ExecutionArgs, Executor, ImageMetadata},
+    container_image::ContainerImage,
+    executor::{self, ExecutionArgs, Executor},
     git, katib,
-    kubectl::{self, is_rfc_1123_label},
+    kubectl::{self, is_rfc_1123_label, NAMESPACE},
     unit::bytes::{self, Bytes},
     user_host::UserHost,
     Result,
@@ -148,38 +149,45 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
             .unwrap_or(machine_user_host.user()),
     );
 
+    let kubectl = context.kubectl();
     let git_info = git::info()?;
 
     if !allow_dirty && !git_info.is_clean {
-        warn!("Please ensure that you commit all changes so we can reproduce the results. This warning may become an error in the future. You can disable this check by passing `--allow-dirty`.");
+        match builder {
+            BuilderArg::Docker => warn!("Please ensure that you commit all changes so we can reproduce the results. This warning may become an error in the future. You can disable this check by passing `--allow-dirty`."),
+            BuilderArg::Kaniko => return Err("There are git changes that have not been committed and pushed. When using the kaniko builder, this means the launched job will not have your latest code. Either commit and push all changes, or disable this check by passing `--allow-dirty`.".into()),
+        }
     }
 
     if !allow_unpushed && !git_info.is_pushed {
-        warn!("Please ensure that your commit is pushed to a remote so we can reproduce the results. This warning may become an error in the future. You can disable this check by passing `--allow-unpushed`.");
+        match builder {
+            BuilderArg::Docker => warn!("Please ensure that your commit is pushed so we can reproduce the results. This warning may become an error in the future. You can disable this check by passing `--allow-unpushed`."),
+            BuilderArg::Kaniko => return Err("There are git changes that have not been pushed. When using the kaniko builder, this means the launched job will not have your latest code. Either push all changes, or disable this check by passing `--allow-dirty`.".into()),
+        }
     }
 
-    let image_name_with_tag = format!(
-        "{host}/{image_name}:{user}-{rand:x}",
-        host = context.container_registry_host(),
+    let build_backend = match builder {
+        BuilderArg::Docker => &builder::DockerBuilder as &dyn builder::Builder,
+        BuilderArg::Kaniko => &builder::KanikoBuilder {
+            working_directory: &std::env::current_dir()?,
+            kubectl: &kubectl,
+            namespace: NAMESPACE,
+            user: user.as_deref(),
+        } as &dyn builder::Builder,
+    };
+
+    let image_tag = format!(
+        "{user}-{rand:x}",
         user = user.as_deref().unwrap_or("unknown-user"),
         rand = rand::random::<u32>()
     );
-    let build_backend = match builder {
-        BuilderArg::Docker => &builder::DockerBuilder as &dyn builder::Builder,
-        BuilderArg::Kaniko => &builder::KanikoBuilder as &dyn builder::Builder,
-    };
-
+    let image = ContainerImage::new(context.container_registry_host(), image_name, &image_tag);
     let build_output = build_backend.build(builder::BuildArgs {
-        git_commit_hash: &git_info.commit_hash,
-        image_name_with_tag: &image_name_with_tag,
+        git_info: &git_info,
+        image: &image,
     })?;
-
-    let image_digest = build_output.image_digest;
-    debug!("image_digest: {image_digest:?}");
-
+    debug!("Built container image: {}", build_output.image.image_url());
     let home_dir = home_dir().ok_or("failed to determine home directory")?;
-
-    let kubectl = context.kubectl();
 
     let databrickscfg_path = if matches!(
         databrickscfg_mode,
@@ -268,18 +276,13 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         ExecutionBackendKind::RayJob => &executor::RayExecutionBackend,
     };
 
-    let image_metadata = ImageMetadata {
-        digest: image_digest.as_ref(),
-        name: image_name,
-    };
-
     execution_backend.execute(ExecutionArgs {
         context,
         job_namespace: kubectl::NAMESPACE,
         generate_name: &generate_name,
         machine_user_host: machine_user_host.to_ref(),
         tailscale_user_host: tailscale_user_host.as_ref().map(UserHost::to_ref),
-        image_metadata,
+        image,
         databrickscfg_name: databrickscfg_name.as_deref(),
         container_args: &command,
         workers,

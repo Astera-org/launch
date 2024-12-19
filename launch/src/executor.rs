@@ -1,17 +1,19 @@
-mod common;
 mod katib;
 mod kubernetes;
 mod ray;
 
+pub(crate) mod common;
 use std::collections::HashMap;
 
 use ::kubernetes::models as km;
+pub use common::*;
 pub use katib::*;
 pub use kubernetes::*;
 pub use ray::*;
 
 use crate::{
     cli::ClusterContext,
+    container_image::ContainerImage,
     katib::ExperimentSpec,
     kubectl::{self},
     unit::bytes::{self, Bytes},
@@ -19,19 +21,13 @@ use crate::{
     Result,
 };
 
-pub struct ImageMetadata<'a> {
-    pub digest: &'a str,
-    /// name does not contain the `registry/` prefix
-    pub name: &'a str,
-}
-
 pub struct ExecutionArgs<'a> {
     pub context: &'a ClusterContext,
     pub job_namespace: &'a str,
     pub generate_name: &'a str,
     pub machine_user_host: UserHostRef<'a>,
     pub tailscale_user_host: Option<UserHostRef<'a>>,
-    pub image_metadata: ImageMetadata<'a>,
+    pub image: ContainerImage<'a>,
     pub databrickscfg_name: Option<&'a str>,
     pub container_args: &'a [String],
     pub workers: u32,
@@ -43,15 +39,6 @@ pub struct ExecutionArgs<'a> {
 pub const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";
 
 impl ExecutionArgs<'_> {
-    fn tagged_name_inside_cluster(&self) -> String {
-        format!(
-            "{host}/{name}@{digest}",
-            host = self.context.container_registry_host(),
-            name = self.image_metadata.name,
-            digest = self.image_metadata.digest
-        )
-    }
-
     fn annotations(&self) -> HashMap<String, String> {
         use std::borrow::Cow;
 

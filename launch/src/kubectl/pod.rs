@@ -154,17 +154,8 @@ impl fmt::Display for PodStatusDisplayMultiLine<'_> {
             do_indent(f, indent + 1)?;
             let name = &status.name;
             let image = &status.image;
-            let state_name = status.state.state_name();
-            write!(
-                f,
-                "container {name:?} using image {image:?} is {state_name}"
-            )?;
-            if let Some(reason) = status.state.reason() {
-                write!(f, " because {reason}")?;
-            }
-            if let Some(message) = status.state.message() {
-                write!(f, ": {message}")?;
-            }
+            let state = &status.state;
+            write!(f, "container {name:?} using image {image:?} is {state}")?;
         }
         Ok(())
     }
@@ -262,17 +253,30 @@ impl ContainerState {
     }
 }
 
+impl fmt::Display for ContainerState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.state_name())?;
+        if let Some(reason) = self.reason() {
+            write!(f, " because {reason}")?;
+        }
+        if let Some(message) = self.message() {
+            write!(f, ": {message}")?;
+        }
+        Ok(())
+    }
+}
+
 /// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#containerstatewaiting-v1-core
 #[derive(Debug, Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct ContainerStateWaiting {
     /// Message regarding why the container is not yet running.
     #[serde(default)]
-    message: Option<String>,
+    pub message: Option<String>,
 
     /// (brief) reason the container is not yet running.
     #[serde(default)]
-    reason: Option<String>,
+    pub reason: Option<String>,
 }
 
 /// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#containerstaterunning-v1-core
@@ -281,7 +285,7 @@ pub struct ContainerStateWaiting {
 pub struct ContainerStateRunning {
     /// Time at which the container was last (re-)started
     #[serde(with = "time::serde::rfc3339")]
-    started_at: time::OffsetDateTime,
+    pub started_at: time::OffsetDateTime,
 }
 
 /// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#containerstateterminated-v1-core
@@ -290,31 +294,31 @@ pub struct ContainerStateRunning {
 pub struct ContainerStateTerminated {
     /// Container's ID in the format '<type>://<container_id>'
     #[serde(rename = "containerID")]
-    container_id: String,
+    pub container_id: String,
 
     /// Exit status from the last termination of the container
     #[serde(default)]
-    exit_code: Option<i32>,
+    pub exit_code: Option<i32>,
 
     /// Time at which the container last terminated
     #[serde(with = "time::serde::rfc3339")]
-    finished_at: time::OffsetDateTime,
+    pub finished_at: time::OffsetDateTime,
 
     /// Message regarding the last termination of the container
     #[serde(default)]
-    message: Option<String>,
+    pub message: Option<String>,
 
     /// (brief) reason from the last termination of the container
     #[serde(default)]
-    reason: Option<String>,
+    pub reason: Option<String>,
 
     /// Signal from the last termination of the container
     #[serde(default)]
-    signal: Option<i32>,
+    pub signal: Option<i32>,
 
     /// Time at which previous execution of the container started
     #[serde(with = "time::serde::rfc3339")]
-    started_at: time::OffsetDateTime,
+    pub started_at: time::OffsetDateTime,
 }
 
 /// Field `phase` of [PodStatus](https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.30/#podstatus-v1-core).

@@ -1,6 +1,7 @@
 pub(crate) mod ansi;
 pub(crate) mod bash_escape;
 pub(crate) mod builder;
+pub(crate) mod container_image;
 pub(crate) mod docker;
 pub(crate) mod executor;
 pub(crate) mod git;

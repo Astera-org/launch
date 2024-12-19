@@ -1,5 +1,3 @@
-//! Implementation details shared by some execution backends.
-
 use std::{error::Error, fmt, thread, time};
 
 use kubernetes::models as k8s;
@@ -8,6 +6,7 @@ use log::{debug, info, warn};
 use super::{ExecutionArgs, Result};
 use crate::kubectl::{self, PodStatus};
 
+pub const KANIKO_POST_BUILD_TIMEOUT: time::Duration = time::Duration::from_secs(30);
 pub const RAY_JOB_CREATION_TIMEOUT: time::Duration = time::Duration::from_secs(600);
 pub const LOG_AVAILABILITY_TIMEOUT: time::Duration = time::Duration::from_secs(600);
 pub const POLLING_INTERVAL: time::Duration = time::Duration::from_secs(2);
@@ -80,7 +79,7 @@ pub fn wait_for_and_follow_pod_logs(
         debug!("Pod status: {status}");
     }
 
-    info!("Waiting for pod logs to become available...");
+    info!("Waiting for logs of Pod {namespace}/{name} to become available...");
 
     let deadline = Deadline::after(LOG_AVAILABILITY_TIMEOUT);
     let mut status = kubectl.pod(namespace, name)?.status;
@@ -149,7 +148,7 @@ pub(super) fn job_spec(
                         command: container_command,
                         args: container_args,
                         env: args.env(),
-                        image: Some(args.tagged_name_inside_cluster()),
+                        image: Some(args.image.image_url()),
                         volume_mounts: args.volume_mounts(),
                         resources: args.resources().map(Box::new),
                         ..Default::default()
