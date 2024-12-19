@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     curl
 
 # Install uv, see https://docs.astral.sh/uv/getting-started/installation/#installation-methods.
-RUN curl -LsSf https://astral.sh/uv/0.4.20/install.sh | env UV_INSTALL_DIR=/usr/local/ sh
+RUN curl -LsSf https://astral.sh/uv/0.5.10/install.sh | env UV_UNMANAGED_INSTALL=/usr/local/bin sh
 
 # Decrease startup time by compiling dependencies to bytecode. See https://docs.astral.sh/uv/guides/integration/docker/#compiling-bytecode.
 ENV UV_COMPILE_BYTECODE=1

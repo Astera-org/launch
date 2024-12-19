@@ -10,9 +10,17 @@ readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
     "draccus>=0.9.1",
-    "tensorboard",
-    "torch>=2.4.1",
+    "tensorboard>=2.18.0",
+    "torch>=2.5.1",
 ]
 
 [tool.setuptools]
 packages = ["katib_example"]
+
+[[tool.uv.index]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch" }
