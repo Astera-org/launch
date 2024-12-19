@@ -23,6 +23,8 @@ tests:
 requirements:
   build:
     - ${{ compiler('rust') }}
+  host:
+    - openssl
 
 about:
   homepage: https://github.com/Astera-org/obelisk/tree/master/launch/README.md

@@ -4,6 +4,20 @@
 
 ### Features
 
+### Fixes
+
+## [0.1.7] - 2024-12-19
+
+You can install this version through pixi with:
+
+```
+pixi global install --channel https://repo.prefix.dev/obelisk launch==0.1.7
+```
+
+Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/0.1.7) or build it from source.
+
+### Features
+
 #### Submit hyperparameter searches on [Katib](https://www.kubeflow.org/docs/components/katib/user-guides/)
 
 Basic interface:
@@ -12,7 +26,26 @@ Basic interface:
 launch submit --katib <path to experiment spec YAML> -- python path/to/my_script.py --my_arg
 ```
 
-### Fixes
+#### Remote image building with [kaniko](https://github.com/GoogleContainerTools/kaniko)
+
+Launch can now build your code inside the cluster, before running it. This can
+be faster than using Docker to build and push an image, especially in remote
+clusters like voltage-park.
+
+You must commit and push all code in your git repo. Have un-commited changes or
+un-pushed commits will result in a warning.
+
+Using the kubernetes example:
+```sh
+cd launch/examples/kubernetes
+launch submit --builder kaniko --context voltage-park -- cat README.md
+```
+
+From the research folder:
+```sh
+cd research/
+launch submit --builder kaniko --context voltage-park --gpus 1 -- pytest
+```
 
 ## [0.1.6] - 2024-09-06
 
@@ -22,7 +55,7 @@ You can install this version through pixi with:
 pixi global install --channel https://repo.prefix.dev/obelisk launch==0.1.6
 ```
 
-Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/<version>) or build it from source.
+Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/0.1.6) or build it from source.
 
 ### Features
 
@@ -290,7 +323,8 @@ The entrypoint always has 0 GPUs in this version of `launch`.
 The docker images built with `launch` are now annotated with the git hash.
 A warning is issued when there are uncommitted changes or if commits have not yet been pushed to a remote.
 
-[unreleased]: https://github.com/Astera-org/obelisk/compare/launch/0.1.6...HEAD
+[unreleased]: https://github.com/Astera-org/obelisk/compare/launch/0.1.7...HEAD
+[0.1.7]: https://github.com/Astera-org/obelisk/compare/launch/0.1.6...launch/0.1.7
 [0.1.6]: https://github.com/Astera-org/obelisk/compare/launch/0.1.5...launch/0.1.6
 [0.1.5]: https://github.com/Astera-org/obelisk/compare/launch/0.1.4...launch/0.1.5
 [0.1.4]: https://github.com/Astera-org/obelisk/compare/launch/0.1.3...launch/0.1.4
