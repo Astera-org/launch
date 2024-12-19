@@ -32,17 +32,24 @@ pixi global upgrade launch
 
 #### From source
 
-To build `launch` from source you need to [install a recent stable Rust toolchain](https://rustup.rs/).
+To install `launch` from source you need to have a recent stable Rust toolchain installed to compile the source code.
+We recommend using [`rustup`](https://rustup.rs/) to install a Rust toolchain.
 
-To build and make `launch` available on your machine, run:
+Once you have a Rust toolchain set up, you can install `launch` directly from the git repository with:
 
 ```
-git checkout master
-git pull
+cargo install --git "https://github.com/Astera-org/obelisk"
+```
+
+You can specify a `--branch <branch>`, `--tag <tag>`, or `--rev <revision>` to install a specific version, see the [cargo install documentation](https://doc.rust-lang.org/cargo/commands/cargo-install.html) for details.
+
+Alternatively, if you have checked out this repository or otherwise made the source code available locally, you can install `launch` with:
+
+```
 cargo install --path launch
 ```
 
-To update `launch`, repeat the above steps.
+To update `launch`, simply `cargo install` another version.
 
 ### Installing `launch`'s run-time dependencies
 
