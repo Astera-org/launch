@@ -1,8 +1,9 @@
 use core::fmt;
 
+use container_image_name::ImageNameRef;
 use log::debug;
 
-use crate::{container_image::ContainerImage, process, Result};
+use crate::{process, Result};
 
 /// Partial implementation of the JSON emitted by the `--metadata-file` option of `docker build`.
 /// See https://docs.docker.com/reference/cli/docker/buildx/build/#metadata-file.
@@ -33,12 +34,12 @@ impl fmt::Display for Platform {
 
 pub struct BuildArgs<'a> {
     pub git_commit_hash: &'a str,
-    pub image: ContainerImage<'a>,
+    pub image: ImageNameRef<'a>,
     pub platform: Platform,
 }
 
-pub struct BuildOutput<'a> {
-    pub image: ContainerImage<'a>,
+pub struct BuildOutput {
+    pub digest: String,
 }
 
 pub fn build_and_push(args: BuildArgs) -> Result<BuildOutput> {
@@ -56,7 +57,7 @@ pub fn build_and_push(args: BuildArgs) -> Result<BuildOutput> {
         "build",
         ".",
         format!("--metadata-file={}", metadata_filepath.display()),
-        format!("--tag={}", image.image_url()),
+        format!("--tag={}", image),
         format!("--build-arg=COMMIT_HASH={git_commit_hash}"),
         format!("--platform={platform}"),
         // https://github.com/opencontainers/image-spec/blob/main/annotations.md
@@ -67,7 +68,8 @@ pub fn build_and_push(args: BuildArgs) -> Result<BuildOutput> {
 
     let metadata_string = std::fs::read_to_string(&metadata_filepath)?;
     let metadata: MetadataFile = serde_json::from_str(&metadata_string)?;
-    let mut image = image.clone();
-    image.digest = Some(metadata.containerimage_digest);
-    Ok(BuildOutput { image })
+
+    Ok(BuildOutput {
+        digest: metadata.containerimage_digest,
+    })
 }

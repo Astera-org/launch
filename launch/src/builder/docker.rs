@@ -3,17 +3,17 @@ use crate::{docker, Result};
 
 pub struct DockerBuilder;
 
-impl<'a> Builder<'a> for DockerBuilder {
-    fn build(&self, args: BuildArgs<'a>) -> Result<BuildOutput<'a>> {
+impl Builder for DockerBuilder {
+    fn build<'a>(&'a self, args: BuildArgs<'a>) -> Result<BuildOutput> {
         // This conversion is necessary because the build arguments for the backend may differ from the
         // build arguments accepted by the docker command line abstraction.
         let docker_build_output = docker::build_and_push(docker::BuildArgs {
             git_commit_hash: &args.git_info.commit_hash,
-            image: args.image.clone(),
+            image: args.image,
             platform: docker::Platform::LinuxAmd64,
         })?;
         Ok(BuildOutput {
-            image: docker_build_output.image,
+            digest: docker_build_output.digest,
         })
     }
 }

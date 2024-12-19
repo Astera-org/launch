@@ -148,7 +148,7 @@ pub(super) fn job_spec(
                         command: container_command,
                         args: container_args,
                         env: args.env(),
-                        image: Some(args.image.image_url()),
+                        image: Some(args.image.to_string()),
                         volume_mounts: args.volume_mounts(),
                         resources: args.resources().map(Box::new),
                         ..Default::default()

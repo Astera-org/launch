@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
-members = ["launch"]
+members = [ "container_image_name","launch"]
 
 [profile.release]
 # https://doc.rust-lang.org/cargo/reference/profiles.html#lto
@@ -14,3 +14,6 @@ strip = "debuginfo"
 
 # https://doc.rust-lang.org/cargo/reference/profiles.html#opt-level
 opt-level = "s"
+
+[workspace.dependencies]
+container-image-name = { path = "container_image_name" }

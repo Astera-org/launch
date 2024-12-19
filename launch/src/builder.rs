@@ -1,24 +1,24 @@
 mod docker;
 mod kaniko;
 
+use container_image_name::ImageNameRef;
 pub use docker::*;
 pub use kaniko::*;
 
 use crate::{
-    container_image::ContainerImage,
     git::{self},
     Result,
 };
 
 pub struct BuildArgs<'a> {
     pub git_info: &'a git::GitInfo,
-    pub image: &'a ContainerImage<'a>,
+    pub image: ImageNameRef<'a>,
 }
 
-pub struct BuildOutput<'a> {
-    pub image: ContainerImage<'a>,
+pub struct BuildOutput {
+    pub digest: String,
 }
 
-pub trait Builder<'a> {
-    fn build(&self, args: BuildArgs<'a>) -> Result<BuildOutput<'a>>;
+pub trait Builder {
+    fn build<'a>(&'a self, args: BuildArgs<'a>) -> Result<BuildOutput>;
 }

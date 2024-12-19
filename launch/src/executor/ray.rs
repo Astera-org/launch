@@ -7,7 +7,6 @@ use crate::{bash_escape, executor::common, kubectl::ResourceHandle};
 
 fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
     let annotations = args.annotations();
-    let image_url = args.image.image_url();
 
     // Ray parses this string with `shlex`. See https://github.com/Astera-org/obelisk/issues/329.
     let entrypoint = bash_escape::quote_join(args.container_args.iter().map(String::as_str));
@@ -40,7 +39,7 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                             "containers": [
                                 {
                                     "name": "ray-head",
-                                    "image": image_url,
+                                    "image": args.image,
                                     // Default ports, see https://github.com/ray-project/kuberay/blob/master/ray-operator/config/samples/ray-job.sample.yaml.
                                     "ports": [
                                         {
@@ -78,7 +77,7 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                                 "containers": [
                                     {
                                         "name": "ray-worker",
-                                        "image": image_url,
+                                        "image": args.image,
                                         "lifecycle": {
                                             "preStop": {
                                                 "exec": {
@@ -108,7 +107,7 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
                     "containers": [
                         {
                             "name": "ray-job-submitter",
-                            "image": image_url,
+                            "image": args.image,
                             // We have to specify the command because otherwise kuberay overwrites it. Ideally, we would
                             // omit this and use `args` instead. See https://github.com/ray-project/kuberay/pull/2208.
                             "command": ["/bin/bash", "-lc", "--"],

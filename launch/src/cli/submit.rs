@@ -2,13 +2,13 @@ use std::path::PathBuf;
 
 use clap::{Args, ValueEnum};
 use constcat::concat;
+use container_image_name::ImageName;
 use home::home_dir;
 use log::{debug, warn};
 
 use super::ClusterContext;
 use crate::{
     builder,
-    container_image::ContainerImage,
     executor::{self, ExecutionArgs, Executor},
     git, katib,
     kubectl::{self, is_rfc_1123_label, NAMESPACE},
@@ -116,13 +116,6 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         return Err("Please provide the command to run".into());
     }
 
-    let current_dir = std::env::current_dir()?;
-    let image_name = std::path::Path::new(&current_dir)
-        .file_name()
-        .ok_or("launch")?
-        .to_str()
-        .ok_or("Current directory name contains invalid UTF-8")?;
-
     let katib_experiment_spec = katib_path
         .as_ref()
         .map(|path| {
@@ -176,17 +169,53 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         } as &dyn builder::Builder,
     };
 
-    let image_tag = format!(
-        "{user}-{rand:x}",
-        user = user.as_deref().unwrap_or("unknown-user"),
-        rand = rand::random::<u32>()
-    );
-    let image = ContainerImage::new(context.container_registry_host(), image_name, &image_tag);
+    let tagged_image = {
+        let current_dir = std::env::current_dir()?;
+
+        let image_name = std::path::Path::new(&current_dir)
+            .file_name()
+            .ok_or("launch")?
+            .to_str()
+            .ok_or("Current directory name contains invalid UTF-8")?;
+
+        let image_tag = format!(
+            "{user}-{rand:x}",
+            user = user.as_deref().unwrap_or("unknown-user"),
+            rand = rand::random::<u32>()
+        );
+
+        // Kaniko should directly push to the cluster local registry, and not the Tailscale registry
+        // proxy, for performance
+        let image_registry = match builder {
+            BuilderArg::Docker => context.container_registry_host(),
+            BuilderArg::Kaniko => "docker-registry.docker-registry.svc.cluster.local",
+        };
+
+        ImageName::builder(image_name)
+            .with_registry(image_registry)
+            .with_tag(image_tag)
+            .build()?
+    };
+
     let build_output = build_backend.build(builder::BuildArgs {
         git_info: &git_info,
-        image: &image,
+        image: tagged_image.as_ref(),
     })?;
-    debug!("Built container image: {}", build_output.image.image_url());
+
+    let built_image = tagged_image
+        .as_builder()
+        .with_registry(context.container_registry_host())
+        .with_digest(&build_output.digest)
+        .build()
+        .map_err(|_| {
+            format!(
+                "failed to combine image {:?} with digest {:?}",
+                tagged_image, build_output.digest
+            )
+        })
+        .unwrap();
+
+    debug!("Built container image: {}", built_image);
     let home_dir = home_dir().ok_or("failed to determine home directory")?;
 
     let databrickscfg_path = if matches!(
@@ -282,7 +311,7 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         generate_name: &generate_name,
         machine_user_host: machine_user_host.to_ref(),
         tailscale_user_host: tailscale_user_host.as_ref().map(UserHost::to_ref),
-        image,
+        image: built_image.as_ref(),
         databrickscfg_name: databrickscfg_name.as_deref(),
         container_args: &command,
         workers,

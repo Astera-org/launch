@@ -11,9 +11,6 @@ use crate::{
 
 // see ansible/playbooks/roles/talos_k8s_configs/templates/launch.yml
 pub const KANIKO_GITHUB_TOKEN: &str = "kaniko-github-token";
-
-pub const REGISTRY_LOCAL_NAME: &str = "docker-registry.docker-registry.svc.cluster.local";
-
 pub const KANIKO_CACHE_PVC_NAME: &str = "kaniko-cache";
 pub const KANIKO_CACHE_PVC_MOUNT_PATH: &str = "/var/run/uv";
 
@@ -24,10 +21,11 @@ pub struct KanikoBuilder<'a> {
     pub working_directory: &'a Path,
 }
 
-impl<'a> Builder<'a> for KanikoBuilder<'a> {
-    fn build(&self, args: BuildArgs<'a>) -> Result<BuildOutput<'a>> {
+impl Builder for KanikoBuilder<'_> {
+    fn build<'a>(&'a self, args: BuildArgs<'a>) -> Result<BuildOutput> {
         let Self { kubectl, .. } = self;
         debug!("Building image: {:?}", args.image);
+
         let pod = kubectl.create(&serde_json::to_string(&self.pod_spec(&args)?)?)?;
 
         executor::wait_for_and_follow_pod_logs(kubectl, &pod.namespace, &pod.name)?;
@@ -71,14 +69,15 @@ impl<'a> Builder<'a> for KanikoBuilder<'a> {
             other => return Err(format!("unexpected termination state: {}", other).into()),
         };
 
-        let image_digest = state
+        let digest = state
             .message
             .as_deref()
             .ok_or("build container should have termination state message")?
             .trim();
-        let mut image = args.image.clone();
-        image.digest = Some(image_digest.to_owned());
-        Ok(BuildOutput { image })
+
+        Ok(BuildOutput {
+            digest: digest.to_string(),
+        })
     }
 }
 
@@ -89,13 +88,7 @@ impl KanikoBuilder<'_> {
             namespace,
             user,
             ..
-        } = self;
-
-        let git_info = args.git_info;
-        let mut image = args.image.clone();
-        // Kaniko should directly push to the local registry,
-        // and not the Tailscale registry proxy, for performance
-        image.registry = REGISTRY_LOCAL_NAME;
+        } = *self;
 
         let generate_name = {
             let mut out = "kaniko-".to_owned();
@@ -108,8 +101,11 @@ impl KanikoBuilder<'_> {
 
         // TODO support repo git url
         let push_remote = "github.com/Astera-org/obelisk";
+
         // Does not take into account symlinks and what not, should be good enough.
-        let sub_path = working_directory.strip_prefix(&git_info.dir)?.to_owned();
+        let sub_path = working_directory
+            .strip_prefix(&args.git_info.dir)?
+            .to_owned();
 
         // Prefer Dockerfile.kaniko if it exists
         let mut dockerfile = "Dockerfile";
@@ -133,13 +129,13 @@ impl KanikoBuilder<'_> {
                     args: Some(vec![
                         format!(
                             "--context=git://{push_remote}#{commit}",
-                            commit = git_info.commit_hash
+                            commit = args.git_info.commit_hash
                         ),
                         format!("--context-sub-path={}", sub_path.display()),
-                        format!("--destination={}", image.image_url()),
-                        format!("--build-arg=COMMIT_HASH={}", git_info.commit_hash),
                         // explicitly specify dockerfile, to support kaniko Dockerfile
                         format!("--dockerfile={}", dockerfile),
+                        format!("--destination={}", args.image),
+                        format!("--build-arg=COMMIT_HASH={}", args.git_info.commit_hash),
                         // allow push to cluster registry
                         "--insecure".to_owned(),
                         // allow push without auth

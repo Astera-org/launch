@@ -7,13 +7,13 @@ use std::collections::HashMap;
 
 use ::kubernetes::models as km;
 pub use common::*;
+use container_image_name::ImageNameRef;
 pub use katib::*;
 pub use kubernetes::*;
 pub use ray::*;
 
 use crate::{
     cli::ClusterContext,
-    container_image::ContainerImage,
     katib::ExperimentSpec,
     kubectl::{self},
     unit::bytes::{self, Bytes},
@@ -27,7 +27,7 @@ pub struct ExecutionArgs<'a> {
     pub generate_name: &'a str,
     pub machine_user_host: UserHostRef<'a>,
     pub tailscale_user_host: Option<UserHostRef<'a>>,
-    pub image: ContainerImage<'a>,
+    pub image: ImageNameRef<'a>,
     pub databrickscfg_name: Option<&'a str>,
     pub container_args: &'a [String],
     pub workers: u32,
