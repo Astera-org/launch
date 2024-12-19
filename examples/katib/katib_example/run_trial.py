@@ -3,7 +3,7 @@ import time
 from dataclasses import dataclass
 
 import draccus
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 
 @dataclass
@@ -30,6 +30,8 @@ if __name__ == "__main__":
     # Assumes Katib is using tensorflow event metric collector
     if not cfg.tensorboard_dir:
         sys.exit("--tensorboard_dir is required")
-    writer = SummaryWriter(logdir=cfg.tensorboard_dir)
-    writer.add_scalar("loss", loss, 0)
+    writer = SummaryWriter(log_dir=cfg.tensorboard_dir)
+    # new_style required for katib due to
+    # https://github.com/kubeflow/katib/issues/2466
+    writer.add_scalar("loss", loss, global_step=0, new_style=True)
     writer.close()
