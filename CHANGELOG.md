@@ -6,6 +6,22 @@
 
 ### Fixes
 
+## [0.1.8] - 2024-12-23
+
+You can install this version through pixi with:
+
+```
+pixi global install --channel https://repo.prefix.dev/obelisk launch==0.1.8
+```
+
+Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/0.1.8) or build it from source.
+
+### Features
+
+#### Remove OpenSSL
+
+This dependency is no longer required and should fix installed failures on Linux environments.
+
 ## [0.1.7] - 2024-12-19
 
 You can install this version through pixi with:
@@ -323,7 +339,8 @@ The entrypoint always has 0 GPUs in this version of `launch`.
 The docker images built with `launch` are now annotated with the git hash.
 A warning is issued when there are uncommitted changes or if commits have not yet been pushed to a remote.
 
-[unreleased]: https://github.com/Astera-org/obelisk/compare/launch/0.1.7...HEAD
+[unreleased]: https://github.com/Astera-org/obelisk/compare/launch/0.1.8...HEAD
+[0.1.8]: https://github.com/Astera-org/obelisk/compare/launch/0.1.7...launch/0.1.8
 [0.1.7]: https://github.com/Astera-org/obelisk/compare/launch/0.1.6...launch/0.1.7
 [0.1.6]: https://github.com/Astera-org/obelisk/compare/launch/0.1.5...launch/0.1.6
 [0.1.5]: https://github.com/Astera-org/obelisk/compare/launch/0.1.4...launch/0.1.5
