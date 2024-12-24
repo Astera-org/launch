@@ -9,8 +9,8 @@ use log::{debug, warn};
 use super::ClusterContext;
 use crate::{
     builder,
-    executor::{self, ExecutionArgs, Executor},
-    git, katib,
+    executor::{self, ExecutionArgs, Executor as _},
+    git,
     kubectl::{self, is_rfc_1123_label, NAMESPACE},
     unit::bytes::{self, Bytes},
     user_host::UserHost,
@@ -115,23 +115,6 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
     if command.is_empty() {
         return Err("Please provide the command to run".into());
     }
-
-    let katib_experiment_spec = katib_path
-        .as_ref()
-        .map(|path| {
-            std::fs::read_to_string(path)
-                .map_err(|error| {
-                    format!("Failed to read Katib experiment spec file {path:?}: {error}")
-                })
-                .and_then(|contents| {
-                    serde_yaml::from_str::<katib::ExperimentSpec>(&contents).map_err(|err| {
-                        format!(
-                            "Failed to parse Katib experiment spec file {path:?}. See `launch submit --help` for format: {err}"
-                        )
-                    })
-                })
-        })
-        .transpose()?;
 
     let machine_user_host = super::common::machine_user_host();
     let tailscale_user_host = super::common::tailscale_user_host();
@@ -260,52 +243,24 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         })
         .transpose()?;
 
-    enum ExecutionBackendKind {
-        Job,
-        Katib,
-        RayJob,
-    }
-
-    let execution_backend_kind = if katib_path.is_some() {
-        ExecutionBackendKind::Katib
+    let executor: executor::AnyExecutor = if let Some(experiment_spec_path) = katib_path {
+        if workers > 1 {
+            // TODO: Consider refactoring the argument parsing to prohibit this.
+            warn!("The katib execution backend ignores the workers argument. Configure `parallelTrialCount` in the experiment specification instead.")
+        }
+        executor::KatibExecutor {
+            experiment_spec_path,
+        }
+        .into()
     } else if workers > 1 {
-        ExecutionBackendKind::RayJob
+        executor::RayExecutor.into()
     } else {
-        ExecutionBackendKind::Job
+        executor::KubernetesExecutor.into()
     };
 
-    let generate_name = {
-        let mut name = String::new();
+    let generate_name = generate_name(name_prefix.as_deref(), user.as_deref(), &executor);
 
-        if let Some(value) = name_prefix.as_deref() {
-            name.push_str(value);
-            name.push('-');
-        };
-
-        if let Some(user) = user.as_deref() {
-            name.push_str(user);
-            name.push('-')
-        }
-
-        if name.is_empty() {
-            name.push_str(match execution_backend_kind {
-                ExecutionBackendKind::Job => "job",
-                ExecutionBackendKind::Katib => "katib",
-                ExecutionBackendKind::RayJob => "ray-job",
-            });
-            name.push('-');
-        }
-
-        name
-    };
-
-    let execution_backend: &dyn Executor = match execution_backend_kind {
-        ExecutionBackendKind::Job => &executor::KubernetesExecutionBackend,
-        ExecutionBackendKind::Katib => &executor::KatibExecutionBackend,
-        ExecutionBackendKind::RayJob => &executor::RayExecutionBackend,
-    };
-
-    execution_backend.execute(ExecutionArgs {
+    executor.execute(ExecutionArgs {
         context,
         job_namespace: kubectl::NAMESPACE,
         generate_name: &generate_name,
@@ -317,8 +272,36 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         workers,
         gpus,
         gpu_mem,
-        katib_experiment_spec,
     })?;
 
     Ok(())
+}
+
+fn generate_name(
+    name_prefix: Option<&str>,
+    user: Option<&str>,
+    executor: &executor::AnyExecutor,
+) -> String {
+    let mut name = String::new();
+
+    if let Some(value) = name_prefix {
+        name.push_str(value);
+        name.push('-');
+    };
+
+    if let Some(user) = user {
+        name.push_str(user);
+        name.push('-')
+    }
+
+    if name.is_empty() {
+        name.push_str(match *executor {
+            executor::AnyExecutor::Kubernetes(_) => "job",
+            executor::AnyExecutor::Katib(_) => "katib",
+            executor::AnyExecutor::Ray(_) => "ray-job",
+        });
+        name.push('-');
+    }
+
+    name
 }

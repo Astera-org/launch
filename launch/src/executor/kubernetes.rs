@@ -8,9 +8,9 @@ use crate::{
     kubectl::ResourceHandle,
 };
 
-pub struct KubernetesExecutionBackend;
+pub struct KubernetesExecutor;
 
-impl Executor for KubernetesExecutionBackend {
+impl Executor for KubernetesExecutor {
     fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput> {
         let kubectl = args.context.kubectl();
         let headlamp_url = args.context.headlamp_url();

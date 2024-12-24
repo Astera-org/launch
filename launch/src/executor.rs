@@ -14,7 +14,6 @@ pub use ray::*;
 
 use crate::{
     cli::ClusterContext,
-    katib::ExperimentSpec,
     kubectl::{self},
     unit::bytes::{self, Bytes},
     user_host::UserHostRef,
@@ -33,7 +32,6 @@ pub struct ExecutionArgs<'a> {
     pub workers: u32,
     pub gpus: u32,
     pub gpu_mem: Option<Bytes>,
-    pub katib_experiment_spec: Option<ExperimentSpec>,
 }
 
 pub const DATABRICKSCFG_MOUNT: &str = "/root/.databrickscfg";
@@ -151,4 +149,38 @@ pub struct ExecutionOutput {}
 
 pub trait Executor {
     fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput>;
+}
+
+macro_rules! impl_any_executor {
+    ($($v:ident($T:ty),)+ $(,)?) => {
+        pub enum AnyExecutor {
+            $(
+                $v($T),
+            )*
+        }
+
+        $(
+            impl From<$T> for AnyExecutor {
+                fn from(value: $T) -> Self {
+                    Self::$v(value)
+                }
+            }
+        )*
+
+        impl Executor for AnyExecutor {
+            fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput> {
+                match self {
+                    $(
+                        Self::$v(executor) => executor.execute(args),
+                    )*
+                }
+            }
+        }
+    }
+}
+
+impl_any_executor! {
+    Kubernetes(KubernetesExecutor),
+    Katib(KatibExecutor),
+    Ray(RayExecutor),
 }

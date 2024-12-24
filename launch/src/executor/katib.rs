@@ -89,12 +89,7 @@ impl From<&crate::katib::FeasibleSpace> for V1beta1FeasibleSpace {
 const TENSORBOARD_DIR: &str = "/var/log/katib/tfevent/";
 const TENSORBOARD_DIR_FLAG: &str = "--tensorboard_dir";
 
-fn experiment(args: &mut ExecutionArgs) -> Result<km::V1beta1Experiment> {
-    let input_exp_spec = args
-        .katib_experiment_spec
-        .take()
-        .ok_or("args.katib_experiment_spec must be set when calling KatibExecutionBackend")?;
-
+fn trial_spec(input_exp_spec: &crate::katib::ExperimentSpec, args: &ExecutionArgs) -> k8s::V1Job {
     let container_args = {
         let param_args = input_exp_spec.parameters.iter().map(|p| {
             let name = p.name.as_str();
@@ -112,9 +107,18 @@ fn experiment(args: &mut ExecutionArgs) -> Result<km::V1beta1Experiment> {
             .chain([TENSORBOARD_DIR_FLAG.to_owned(), TENSORBOARD_DIR.to_owned()])
             .collect()
     };
+
     let mut trial_spec = common::job_spec(args, None, Some(container_args));
     // Katib doesn't allow metadata in the trial spec
     trial_spec.metadata = None;
+    trial_spec
+}
+
+fn experiment(
+    input_exp_spec: crate::katib::ExperimentSpec,
+    args: &mut ExecutionArgs,
+) -> Result<km::V1beta1Experiment> {
+    let trial_spec = trial_spec(&input_exp_spec, args);
 
     let exp_spec = km::V1beta1ExperimentSpec {
         objective: Some(Box::new(V1beta1ObjectiveSpec {
@@ -205,14 +209,25 @@ fn experiment(args: &mut ExecutionArgs) -> Result<km::V1beta1Experiment> {
     })
 }
 
-pub struct KatibExecutionBackend;
+pub struct KatibExecutor {
+    pub experiment_spec_path: std::path::PathBuf,
+}
 
-impl Executor for KatibExecutionBackend {
+fn read_experiment_spec(path: &std::path::Path) -> Result<crate::katib::ExperimentSpec> {
+    Ok(serde_yaml::from_slice(
+        &std::fs::read(path).map_err(|err| format!("Failed to read Katib experiment spec file {}: {err}", path.display()))?,
+    )
+    .map_err(|err| format!("Failed to parse Katib experiment spec file {}: {err}\nSee `launch submit --help` for format.", path.display()))?)
+}
+
+impl Executor for KatibExecutor {
     fn execute(&self, mut args: ExecutionArgs) -> Result<ExecutionOutput> {
         let kubectl = args.context.kubectl();
 
+        let experiment_spec = read_experiment_spec(&self.experiment_spec_path)?;
+
         let (exp_namespace, exp_name) = {
-            let exp = experiment(&mut args)?;
+            let exp = experiment(experiment_spec, &mut args)?;
             let serialized_exp = serde_json::to_string(&exp)?;
             let ResourceHandle { namespace, name } = kubectl.create(&serialized_exp)?;
             (namespace, name)

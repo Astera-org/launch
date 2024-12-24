@@ -121,9 +121,9 @@ fn ray_job_spec(args: &ExecutionArgs) -> serde_json::Value {
     })
 }
 
-pub struct RayExecutionBackend;
+pub struct RayExecutor;
 
-impl Executor for RayExecutionBackend {
+impl Executor for RayExecutor {
     fn execute(&self, args: ExecutionArgs) -> Result<ExecutionOutput> {
         let kubectl = args.context.kubectl();
         let headlamp_url = args.context.headlamp_url();
