@@ -85,6 +85,10 @@ launch <subcommand> --help
 
 Please use the help text from the `launch` application, it should be very informative.
 
+For an introduction to `launch submit --katib`
+(for hyperparameter tuning and running with many random seeds),
+see [docs/katib.md](./docs/katib.md).
+
 ## Examples
 
 The [`examples/`](./examples/) folder contains some standalone projects which can be used to try out `launch`.
@@ -128,11 +132,11 @@ RUST_LOG=debug launch
 
 More [advanced specifications](https://docs.rs/env_logger/latest/env_logger/#enabling-logging) than `debug` are possible if you need finer control of what is being logged.
 
-### Running the docker image locally
+### Running the container image locally
 
-It can be helpful to run a docker container locally if your command does not run successfully.
-By running a docker container locally, you can inspect the file system inside the container or try out some commands quickly.
-To do so, determine the docker image digest from the build output emitted by `launch`.
+It can be helpful to run a container locally if your command does not run successfully.
+By running a container locally, you can inspect the file system inside it or try out some commands quickly.
+To do so, determine the container image digest from the build output emitted by `launch`.
 It should look something like:
 
 ```

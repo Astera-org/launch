@@ -1,7 +1,5 @@
-import sys
 import time
 from dataclasses import dataclass
-from typing import Self
 
 import draccus
 from torch.utils.tensorboard import SummaryWriter
@@ -19,15 +17,6 @@ class Config:
     nested: NestedConfig
     tensorboard_dir: str
 
-    @classmethod
-    def from_args(cls) -> Self:
-        """Creates a config from the program arguments and validates it."""
-        cfg = draccus.parse(config_class=cls)
-        # TODO: Remove ` or cfg.tensorboard_dir == "None"` when https://github.com/dlwh/draccus/issues/25 is fixed.
-        if not cfg.tensorboard_dir or cfg.tensorboard_dir == "None":
-            sys.exit("--tensorboard_dir is required")
-        return cfg
-
     def __repr__(self) -> str:
         return draccus.dump(self)
 
@@ -43,7 +32,7 @@ def run_experiment_trial(cfg: Config):
 
 
 def main():
-    cfg = Config.from_args()
+    cfg = draccus.parse(config_class=Config)
     print(cfg)
     run_experiment_trial(cfg)
 

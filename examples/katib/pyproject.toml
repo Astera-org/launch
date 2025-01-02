@@ -9,7 +9,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11,<3.13"
 dependencies = [
-    "draccus>=0.9.1",
+    "draccus",
     "tensorboard>=2.18.0",
     "torch>=2.5.1",
 ]
@@ -24,3 +24,4 @@ explicit = true
 
 [tool.uv.sources]
 torch = { index = "pytorch" }
+draccus = { git = "https://github.com/dlwh/draccus", rev = "f78f3527d6436d74fb12d17e32a17e85d433d222" }
