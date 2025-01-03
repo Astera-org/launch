@@ -197,12 +197,23 @@ fn experiment(
         ..Default::default()
     };
 
+    // Ensure the experiment name is at most [40
+    // characters](https://github.com/kubeflow/katib/issues/2454#issuecomment-2508754891) to avoid
+    // [an issue with katib](https://github.com/kubeflow/katib/issues/2454).
+    const EXPERIMENT_NAME_MAX_LEN: usize = 40;
+    let generate_name = if args.generate_name.len() <= EXPERIMENT_NAME_MAX_LEN {
+        args.generate_name
+    } else {
+        warn!("Truncating experiment name to {EXPERIMENT_NAME_MAX_LEN} characters");
+        &args.generate_name[..EXPERIMENT_NAME_MAX_LEN]
+    };
+
     Ok(km::V1beta1Experiment {
         api_version: Some("kubeflow.org/v1beta1".to_owned()), // https://github.com/kubeflow/katib/blob/2b41ae62ab3905984e02123218351a703c03bf56/sdk/python/v1beta1/kubeflow/katib/constants/constants.py#L28
         kind: Some("Experiment".to_owned()), // https://github.com/kubeflow/katib/blob/2b41ae62ab3905984e02123218351a703c03bf56/sdk/python/v1beta1/kubeflow/katib/constants/constants.py#L29
         metadata: Some(k8s::V1ObjectMeta {
             annotations: Some(args.annotations().clone()),
-            generate_name: Some(args.generate_name.to_owned()),
+            generate_name: Some(generate_name.to_owned()),
             namespace: Some(args.job_namespace.to_owned()),
             ..Default::default()
         }),
