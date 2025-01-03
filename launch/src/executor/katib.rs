@@ -1,5 +1,7 @@
 //! The katib experiment backend implementation.
 
+use std::collections::HashMap;
+
 use ::katib::models as km;
 use ::kubernetes::models as k8s;
 use itertools::Itertools;
@@ -8,10 +10,10 @@ use katib::models::{
     V1beta1FileSystemPath, V1beta1MetricStrategy, V1beta1MetricsCollectorSpec,
     V1beta1ObjectiveSpec, V1beta1ParameterSpec, V1beta1SourceSpec,
 };
-use log::info;
+use log::{error, info, warn};
 
 use super::{ExecutionArgs, ExecutionOutput, Executor, Result};
-use crate::{executor::common, kubectl::ResourceHandle};
+use crate::{cli::ClusterContext, executor::common, kubectl::ResourceHandle};
 
 fn sanitize_param_name(param_name: &str) -> String {
     // '.' is special because it's used in the template substitution that katib does on
@@ -226,21 +228,179 @@ impl Executor for KatibExecutor {
 
         let experiment_spec = read_experiment_spec(&self.experiment_spec_path)?;
 
-        let (exp_namespace, exp_name) = {
-            let exp = experiment(experiment_spec, &mut args)?;
-            let serialized_exp = serde_json::to_string(&exp)?;
-            let ResourceHandle { namespace, name } = kubectl.create(&serialized_exp)?;
-            (namespace, name)
-        };
+        let ResourceHandle { namespace, name } = kubectl.create(&serde_json::to_string(
+            &experiment(experiment_spec, &mut args)?,
+        )?)?;
 
-        let katib_url = args.context.katib_url();
-        info!(
-            "Created Experiment {:?}",
-            format!("{katib_url}/experiment/{exp_namespace}/{exp_name}")
-        );
+        let experiment_url = experiment_url(args.context.katib_url(), &namespace, &name);
+        info!("Created experiment {experiment_url}",);
 
-        // TODO: Wait for the experiment to at least run one trial successfully. If it doesn't, check for common problems.
+        let mut trial_to_state: HashMap<String, TrialState> = Default::default();
+
+        loop {
+            let experiment = kubectl.katib_experiment(&namespace, &name)?;
+
+            let status = experiment
+                .status
+                .as_deref()
+                .expect("experiment should have status");
+
+            log_trial_state_changes(args.context, &namespace, &name, &mut trial_to_state, status);
+
+            if let Some(status) = terminal_experiment_status(status) {
+                match status {
+                    TerminalExperimentStatus::Succeeded => {
+                        info!("Succesfully completed experiment {experiment_url}")
+                    }
+                    TerminalExperimentStatus::Failed(message) => {
+                        error!("Failed to complete experiment {experiment_url}: {message}",)
+                    }
+                }
+                break;
+            }
+
+            std::thread::sleep(super::POLLING_INTERVAL);
+        }
 
         Ok(ExecutionOutput {})
     }
+}
+
+fn log_trial_state_changes(
+    context: &ClusterContext,
+    namespace: &str,
+    experiment_name: &str,
+    trial_to_state: &mut HashMap<String, TrialState>,
+    status: &km::V1beta1ExperimentStatus,
+) {
+    for (trial_name, state) in trial_state_iter(status) {
+        let prev_state = trial_to_state.insert(trial_name.to_owned(), state);
+
+        if prev_state == Some(state) {
+            continue;
+        }
+
+        let trial_url = trial_url(context.katib_url(), namespace, experiment_name, trial_name);
+        let trial_job_url = trial_job_url(context.headlamp_url(), namespace, trial_name);
+        match state {
+            TrialState::Pending => info!("Awaiting pending trial {trial_url}"),
+            TrialState::Running => info!("Running trial {trial_url}"),
+            TrialState::Failed => error!("Failed trial {trial_url}. View logs for details: {trial_job_url}."),
+            TrialState::Killed => error!("Killed trial {trial_url}. View logs for details: {trial_job_url}."),
+            TrialState::EarlyStopped => info!("Early-stopped trial {trial_url}"),
+            TrialState::Succeeded => info!("Succesfully completed trial {trial_url}"),
+            TrialState::MetricsUnavailable => error!("Metrics unavailable for trial {trial_url}. View logs for details: {trial_job_url}."),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+enum TrialState {
+    Pending,
+    Running,
+    Failed,
+    Killed,
+    EarlyStopped,
+    Succeeded,
+    MetricsUnavailable,
+}
+
+fn trial_state_iter(
+    status: &::katib::models::V1beta1ExperimentStatus,
+) -> impl Iterator<Item = (&str, TrialState)> {
+    // The order here determines when events are printed. We want completion to be printed before
+    // the starting of new trials for a more chronological order.
+    status
+        .succeeded_trial_list
+        .as_deref()
+        .unwrap_or_default()
+        .iter()
+        .map(|trial| (trial.as_str(), TrialState::Succeeded))
+        .chain(
+            status
+                .failed_trial_list
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .map(|trial| (&**trial, TrialState::Failed)),
+        )
+        .chain(
+            status
+                .killed_trial_list
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .map(|trial| (&**trial, TrialState::Killed)),
+        )
+        .chain(
+            status
+                .early_stopped_trial_list
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .map(|trial| (&**trial, TrialState::EarlyStopped)),
+        )
+        .chain(
+            status
+                .metrics_unavailable_trial_list
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .map(|trial| (&**trial, TrialState::MetricsUnavailable)),
+        )
+        .chain(
+            status
+                .pending_trial_list
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .map(|trial| (&**trial, TrialState::Pending)),
+        )
+        .chain(
+            status
+                .running_trial_list
+                .as_deref()
+                .unwrap_or_default()
+                .iter()
+                .map(|trial| (&**trial, TrialState::Running)),
+        )
+}
+
+enum TerminalExperimentStatus<'a> {
+    Succeeded,
+    Failed(&'a str),
+}
+
+fn terminal_experiment_status(
+    status: &km::V1beta1ExperimentStatus,
+) -> Option<TerminalExperimentStatus<'_>> {
+    let condition = status
+        .conditions
+        .as_deref()
+        .and_then(<[_]>::last)
+        .expect("experiment status should have condition");
+
+    match condition._type.as_str() {
+        "Succeeded" => Some(TerminalExperimentStatus::Succeeded),
+        "Failed" => Some(TerminalExperimentStatus::Failed(
+            condition.message.as_ref().unwrap(),
+        )),
+        "Created" | "Running" => None,
+        unknown => {
+            warn!("Unknown status condition type {unknown}");
+            None
+        }
+    }
+}
+
+fn experiment_url(katib_url: &str, namespace: &str, experiment_name: &str) -> String {
+    format!("{katib_url}/experiment/{namespace}/{experiment_name}",)
+}
+
+fn trial_url(katib_url: &str, namespace: &str, experiment_name: &str, trial_name: &str) -> String {
+    format!("{katib_url}/experiment/{namespace}/{experiment_name}/trial/{trial_name}",)
+}
+
+fn trial_job_url(headlamp_url: &str, namespace: &str, trial_name: &str) -> String {
+    format!("{headlamp_url}/c/main/jobs/{namespace}/{trial_name}")
 }

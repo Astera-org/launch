@@ -213,6 +213,25 @@ impl<'a> Kubectl<'a> {
         Ok(serde_json::from_slice::<GetResource<_>>(&output.stdout)?.items)
     }
 
+    pub fn katib_experiment(
+        &self,
+        namespace: &str,
+        name: &str,
+    ) -> Result<::katib::models::V1beta1Experiment> {
+        let output = process::args!(
+            self.kubectl(),
+            "get",
+            "experiment",
+            "--namespace",
+            namespace,
+            name,
+            "--output=json",
+        )
+        .output()?;
+
+        Ok(serde_json::from_slice(&output.stdout)?)
+    }
+
     pub fn ray_jobs(&self, namespace: &str) -> Result<Vec<RayJob>> {
         let output = process::args!(
             self.kubectl(),
