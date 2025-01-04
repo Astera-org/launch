@@ -13,6 +13,7 @@ source:
   path: ../../
 
 build:
+  number: ${{ env.get("GITHUB_RUN_NUMBER", default="0") }}
   script:
     - LAUNCH_RELEASE=1 $BUILD_PREFIX/bin/cargo install --locked --path launch --bin launch --root "$PREFIX"
 
