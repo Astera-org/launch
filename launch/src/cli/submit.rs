@@ -11,7 +11,7 @@ use crate::{
     builder,
     executor::{self, ExecutionArgs, Executor as _},
     git,
-    kubectl::{self, is_rfc_1123_label, NAMESPACE},
+    kubectl::{self, is_rfc_1035_label, NAMESPACE},
     unit::bytes::{self, Bytes},
     user_host::UserHost,
     Result,
@@ -69,8 +69,8 @@ pub struct SubmitArgs {
 }
 
 fn expect_name_prefix(value: &str) -> Result<String, &'static str> {
-    if !is_rfc_1123_label(value) {
-        return Err("expected an RFC 1123 label matching regex /^[a-z]([a-z0-9]+-)*[a-z0-9]$/");
+    if !is_rfc_1035_label(value) {
+        return Err("expected an RFC 1035 label matching regex /^[a-z]([-a-z0-9]*[a-z0-9])?$/");
     }
     if value.len() > 20 {
         return Err("expected 20 characters or less");
@@ -118,7 +118,7 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
 
     let machine_user_host = super::common::machine_user_host();
     let tailscale_user_host = super::common::tailscale_user_host();
-    let user = kubectl::to_rfc_1123_label_lossy(
+    let user = kubectl::to_rfc_1035_label_lossy(
         tailscale_user_host
             .as_ref()
             .and_then(|value| value.host().is_some().then_some(value.user()))
