@@ -155,25 +155,31 @@ docker run --rm -it sha256:89b7200c2632bdf418a6bc10f8a26495ab929947c6d962833a911
 2. create a branch `git checkout -b launch/release-<version>`
 3. modify `CHANGELOG.md`:
    1. replace `## Unreleased` with:
-        ````md
-        ## [<version>] - <yyyy>-<mm>-<dd>
+      ````md
+      ## [<version>] - <yyyy>-<mm>-<dd>
 
-        You can install this version through pixi with:
+      You can install this version through `pixi` with:
 
-        ```
-        pixi global install --channel https://repo.prefix.dev/obelisk launch==<version>
-        ```
+      ```bash
+      pixi global install --channel https://repo.prefix.dev/obelisk launch==<version>
+      ```
 
-        Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/<version>) or build it from source.
-        ````
+      Or build it from source with:
+
+      ```bash
+      cargo install launch --locked --force --git https://github.com/Astera-org/obelisk --tag launch/<version>
+      ```
+
+      Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/<version>) or build it from source.
+      ````
    4. replace:
-       ```
-       [unreleased]: https://github.com/Astera-org/obelisk/compare/launch/<previous-version>...HEAD
-       ```
-       with:
-       ```
-       [<version>]: https://github.com/Astera-org/obelisk/compare/launch/<previous-version>...launch/<version>
-       ```
+      ```md
+      [unreleased]: https://github.com/Astera-org/obelisk/compare/launch/<previous-version>...HEAD
+      ```
+      with:
+      ```md
+      [<version>]: https://github.com/Astera-org/obelisk/compare/launch/<previous-version>...launch/<version>
+      ```
 4. commit the changes `git commit -m "Release launch-<version>"`
 5. tag the commit `git tag launch/<version>`
 6. modify `CHANGELOG.md`:
@@ -181,9 +187,7 @@ docker run --rm -it sha256:89b7200c2632bdf418a6bc10f8a26495ab929947c6d962833a911
         ```
         ## Unreleased
 
-        ### Features
-
-        ### Fixes
+        ### Changes
 
         ```
    2. add above the links list:
@@ -191,7 +195,7 @@ docker run --rm -it sha256:89b7200c2632bdf418a6bc10f8a26495ab929947c6d962833a911
         [unreleased]: https://github.com/Astera-org/obelisk/compare/launch/<version>...HEAD
         ```
 7. commit the changes `git commit -m "Prepare changelog"`
-8. push the changes and tags `git push -u origin launch/release-<version> && git push launch/<version>`
+8. push the changes and tags `git push -u origin launch/release-<version> && git push origin launch/<version>`
 9. merge the release branch back into master
 10. post in the `#infra` slack channel:
     ```
