@@ -1,10 +1,38 @@
 # Changelog
 
-## Unreleased
+## [0.1.9] - 2025-01-04
 
-### Features
+You can install this version through `pixi` with:
 
-### Fixes
+```bash
+pixi global install --channel https://repo.prefix.dev/obelisk launch==0.1.9
+```
+
+Or build it from source with:
+
+```bash
+cargo install launch --locked --force --git https://github.com/Astera-org/obelisk --tag launch/0.1.9
+```
+
+Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/0.1.9) or build it from source.
+
+### Changes
+
+#### [Monitor and log Katib experiment status](https://github.com/Astera-org/obelisk/issues/730)
+
+Launch now polls the status of Katib experiments after launching them.
+State changes to the experiment and the resulting trials are logged with hyperlinks to our Kubernetes dashboard in case something is wrong.
+This allows the user to view the logs of the Kubernetes pods started for the Katib trials.
+
+#### [Require `--name-prefix` to start with a lowercase ASCII letter](https://github.com/Astera-org/obelisk/pull/829)
+
+Katib requires the Kubernetes resource names to satisfy [RFC 1035 label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#rfc-1035-label-names) instead of [RFC 1123 label names](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#dns-label-names).
+The only difference between the two is that RFC 1035 label names can not start with a digit.
+
+#### [Truncate long experiment names](https://github.com/Astera-org/obelisk/issues/827)
+
+Launch now automatically truncates long experiment names to a maximum of 40 characters.
+A warning is logged when this occurs.
 
 ## [0.1.8] - 2024-12-23
 
@@ -339,7 +367,7 @@ The entrypoint always has 0 GPUs in this version of `launch`.
 The docker images built with `launch` are now annotated with the git hash.
 A warning is issued when there are uncommitted changes or if commits have not yet been pushed to a remote.
 
-[unreleased]: https://github.com/Astera-org/obelisk/compare/launch/0.1.8...HEAD
+[0.1.9]: https://github.com/Astera-org/obelisk/compare/launch/0.1.8...launch/0.1.9
 [0.1.8]: https://github.com/Astera-org/obelisk/compare/launch/0.1.7...launch/0.1.8
 [0.1.7]: https://github.com/Astera-org/obelisk/compare/launch/0.1.6...launch/0.1.7
 [0.1.6]: https://github.com/Astera-org/obelisk/compare/launch/0.1.5...launch/0.1.6
