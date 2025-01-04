@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+### Changes
+
 ## [0.1.9] - 2025-01-04
 
 You can install this version through `pixi` with:
@@ -367,6 +371,7 @@ The entrypoint always has 0 GPUs in this version of `launch`.
 The docker images built with `launch` are now annotated with the git hash.
 A warning is issued when there are uncommitted changes or if commits have not yet been pushed to a remote.
 
+[unreleased]: https://github.com/Astera-org/obelisk/compare/launch/0.1.9...HEAD
 [0.1.9]: https://github.com/Astera-org/obelisk/compare/launch/0.1.8...launch/0.1.9
 [0.1.8]: https://github.com/Astera-org/obelisk/compare/launch/0.1.7...launch/0.1.8
 [0.1.7]: https://github.com/Astera-org/obelisk/compare/launch/0.1.6...launch/0.1.7
