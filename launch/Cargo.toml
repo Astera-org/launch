@@ -31,3 +31,5 @@ kubernetes = { git = "https://github.com/Astera-org/kubernetes-client-rust.git",
 katib = { git = "https://github.com/Astera-org/katib-client-rust.git", tag = "v0.17.0+1", version = "0.17.0" }
 serde_yaml = "0.9.34"
 container-image-name = { workspace = true }
+semver = "1.0.24"
+ctrlc = "3.4.5"
