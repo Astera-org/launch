@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 use ::katib::models as km;
 use ::kubernetes::models as k8s;
-use itertools::Itertools;
 use katib::models::{
     V1beta1AlgorithmSetting, V1beta1AlgorithmSpec, V1beta1CollectorSpec, V1beta1FeasibleSpace,
     V1beta1FileSystemPath, V1beta1MetricStrategy, V1beta1MetricsCollectorSpec,
@@ -189,7 +188,7 @@ fn experiment(
                         reference: Some(sanitize_param_name(&p.name)),
                         ..Default::default()
                     })
-                    .collect_vec(),
+                    .collect(),
             ),
             retain: Some(true),
             ..Default::default()
