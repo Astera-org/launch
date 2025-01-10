@@ -250,23 +250,26 @@ impl Executor for KatibExecutor {
         loop {
             let experiment = kubectl.katib_experiment(&namespace, &name)?;
 
-            let status = experiment
-                .status
-                .as_deref()
-                .expect("experiment should have status");
+            if let Some(status) = experiment.status.as_deref() {
+                log_trial_state_changes(
+                    args.context,
+                    &namespace,
+                    &name,
+                    &mut trial_to_state,
+                    status,
+                );
 
-            log_trial_state_changes(args.context, &namespace, &name, &mut trial_to_state, status);
-
-            if let Some(status) = terminal_experiment_status(status) {
-                match status {
-                    TerminalExperimentStatus::Succeeded => {
-                        info!("Succesfully completed experiment {experiment_url}")
+                if let Some(status) = terminal_experiment_status(status) {
+                    match status {
+                        TerminalExperimentStatus::Succeeded => {
+                            info!("Succesfully completed experiment {experiment_url}")
+                        }
+                        TerminalExperimentStatus::Failed(message) => {
+                            error!("Failed to complete experiment {experiment_url}: {message}",)
+                        }
                     }
-                    TerminalExperimentStatus::Failed(message) => {
-                        error!("Failed to complete experiment {experiment_url}: {message}",)
-                    }
+                    break;
                 }
-                break;
             }
 
             std::thread::sleep(super::POLLING_INTERVAL);
