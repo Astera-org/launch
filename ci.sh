@@ -21,3 +21,8 @@ fi
 cargo clippy --fix --allow-dirty --allow-staged --all-features --all-targets -- -D warnings
 cargo "+$NIGHTLY" fmt
 cargo test
+
+pushd examples/katib
+uv run -- ruff format
+uv run -- ruff check --fix
+popd

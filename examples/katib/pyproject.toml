@@ -25,3 +25,29 @@ explicit = true
 [tool.uv.sources]
 torch = { index = "pytorch" }
 draccus = { git = "https://github.com/dlwh/draccus", rev = "f78f3527d6436d74fb12d17e32a17e85d433d222" }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.9.1",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "A",   # flake8-builtins
+    "B",   # flake8-bugbear
+    "E",   # pycodestyle
+    "F",   # Pyflakes
+    "I",   # isort
+    "PT",  # flake8-pytest-style
+    "SIM", # flake8-simplify
+    "UP",  # pyupgrade
+]
+ignore = [
+    "A003",   # builtin-attribute-shadowing
+    "SIM108", # Use the ternary operator
+    "UP007",  # Allow Optional[type] instead of X | Y
+]
