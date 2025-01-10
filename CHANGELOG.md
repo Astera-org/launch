@@ -4,6 +4,18 @@
 
 ### Changes
 
+#### [Image tags now use git commit ids](https://github.com/Astera-org/obelisk/pull/838)
+
+Clean Docker image builds and Kaniko image builds now use git commit ids as the tag: "voltage-park-docker.taila1eba.ts.net/kubernetes:30151d451582468a64156e00448143b123b3a0b8"
+
+Dirty docker image builds still use the "username-random_id" format: "voltage-park-docker.taila1eba.ts.net/kubernetes:matthew-27cb5f11"
+
+#### [Kaniko builder doesn't rebuild existing images](https://github.com/Astera-org/obelisk/pull/838)
+
+If a remote image exists, based on the current git id, Kaniko builder will use that image instead of re-building it.
+
+This allows for faster launching of jobs with different command line arguements.
+
 #### [Automatically set MLFLOW_TRACKING_URI to databricks](https://github.com/Astera-org/obelisk/pull/857)
 
 `launch submit` now sets the environment variable `MLFLOW_TRACKING_URI=databricks` automatically for the container when `.databrickscfg` file is detected.

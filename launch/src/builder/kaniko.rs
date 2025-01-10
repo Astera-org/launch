@@ -1,11 +1,13 @@
-use std::path::Path;
+use std::{path::Path, time::Duration};
 
 use ::kubernetes::models as k8s;
-use log::debug;
+use container_image_name::ImageNameRef;
+use log::{debug, warn};
 
 use super::{BuildArgs, BuildOutput, Builder, Result};
 use crate::{
     executor::{self, Deadline, KANIKO_POST_BUILD_TIMEOUT, POLLING_INTERVAL},
+    git::is_full_git_commit_hash,
     kubectl::{self},
 };
 
@@ -14,18 +16,68 @@ pub const KANIKO_GITHUB_TOKEN: &str = "kaniko-github-token";
 pub const KANIKO_CACHE_PVC_NAME: &str = "kaniko-cache";
 pub const KANIKO_CACHE_PVC_MOUNT_PATH: &str = "/var/run/uv";
 
+// Account for different image types in the Registry API
+// Authoritive list: https://github.com/google/go-containerregistry/blob/6bce25ecf0297c1aa9072bc665b5cf58d53e1c54/pkg/v1/types/types.go#L22
+pub const ACCEPTABLE_MANIFEST_TYPES: &[&str] = &[
+    "application/vnd.oci.image.manifest.v1+json", // kaniko builder
+    "application/vnd.oci.image.index.v1+json",    // docker builder
+];
+
 pub struct KanikoBuilder<'a> {
     pub kubectl: &'a kubectl::Kubectl<'a>,
     pub namespace: &'a str,
     pub user: Option<&'a str>,
     pub working_directory: &'a Path,
+    pub client: &'a reqwest::blocking::Client,
 }
 
 impl Builder for KanikoBuilder<'_> {
     fn build<'a>(&'a self, args: BuildArgs<'a>) -> Result<BuildOutput> {
         let Self { kubectl, .. } = self;
+
+        debug!(
+            "Checking if image {:?} is already available in registry...",
+            args.image
+        );
+        if !is_full_git_commit_hash(args.image.tag().unwrap()) {
+            return Err("Image tag is not valid, check debug logs for more details".into());
+        }
+        match query_image_digest(args.image, self.client) {
+            Ok(Some(digest)) => {
+                let image = args
+                    .image
+                    .as_builder()
+                    .with_digest(&digest)
+                    .build()
+                    .unwrap();
+                debug!("Using already available image {image:?}");
+                return Ok(BuildOutput { digest });
+            }
+            Ok(None) => {
+                debug!("Did not find image {:?} in registry", args.image);
+            }
+            Err(e) => {
+                warn!(
+                    "Failed to check if image {:?} is already available in registry: {:?}",
+                    args.image, e
+                );
+            }
+        }
+
         debug!("Building image: {:?}", args.image);
 
+        // Kaniko should directly push to the cluster local registry, and not the Tailscale registry
+        // proxy, for performance
+        let image = args
+            .image
+            .as_builder()
+            .with_registry("docker-registry.docker-registry.svc.cluster.local")
+            .build()
+            .unwrap();
+        let args = BuildArgs {
+            image: image.as_ref(),
+            ..args
+        };
         let pod = kubectl.create(&serde_json::to_string(&self.pod_spec(&args)?)?)?;
 
         executor::wait_for_and_follow_pod_logs(kubectl, &pod.namespace, &pod.name)?;
@@ -174,4 +226,35 @@ impl KanikoBuilder<'_> {
             ..Default::default()
         })
     }
+}
+
+fn query_image_digest(
+    image: ImageNameRef<'_>,
+    client: &reqwest::blocking::Client,
+) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    let image_tag = image.tag().ok_or("Expected image tag not found")?;
+    let registry_lookup_url = format!(
+        "https://{registry}/v2/{image_path}/manifests/{image_tag}",
+        registry = image.registry().ok_or("Image registry must be set")?,
+        image_path = image.path(),
+        image_tag = image_tag,
+    );
+    // Registry API requires mediaType Header
+    // https://github.com/opencontainers/image-spec/blob/main/manifest.md#image-manifest
+    let resp = client
+        .head(&registry_lookup_url)
+        .header("Accept", ACCEPTABLE_MANIFEST_TYPES.join(","))
+        .timeout(Duration::from_secs(5))
+        .send()
+        .map_err(|e| Box::new(e) as Box<dyn std::error::Error>)?;
+    if resp.status().is_success() {
+        // Registry API should always return a digest
+        // https://distribution.github.io/distribution/spec/api/#digest-header
+        let digest = resp
+            .headers()
+            .get("Docker-Content-Digest")
+            .ok_or("Expected image digest not found")?;
+        return Ok(Some(digest.to_str().unwrap().to_string()));
+    }
+    Ok(None)
 }

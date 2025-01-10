@@ -142,6 +142,7 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         }
     }
 
+    let client = reqwest::blocking::Client::new();
     let build_backend = match builder {
         BuilderArg::Docker => &builder::DockerBuilder as &dyn builder::Builder,
         BuilderArg::Kaniko => &builder::KanikoBuilder {
@@ -149,6 +150,7 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
             kubectl: &kubectl,
             namespace: NAMESPACE,
             user: user.as_deref(),
+            client: &client,
         } as &dyn builder::Builder,
     };
 
@@ -161,21 +163,18 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
             .to_str()
             .ok_or("Current directory name contains invalid UTF-8")?;
 
-        let image_tag = format!(
-            "{user}-{rand:x}",
-            user = user.as_deref().unwrap_or("unknown-user"),
-            rand = rand::random::<u32>()
-        );
-
-        // Kaniko should directly push to the cluster local registry, and not the Tailscale registry
-        // proxy, for performance
-        let image_registry = match builder {
-            BuilderArg::Docker => context.container_registry_host(),
-            BuilderArg::Kaniko => "docker-registry.docker-registry.svc.cluster.local",
+        let image_tag = if git_info.is_clean || builder == BuilderArg::Kaniko {
+            git_info.commit_hash.clone()
+        } else {
+            format!(
+                "{user}-{rand:x}",
+                user = user.as_deref().unwrap_or("unknown-user"),
+                rand = rand::random::<u32>()
+            )
         };
 
         ImageName::builder(image_name)
-            .with_registry(image_registry)
+            .with_registry(context.container_registry_host())
             .with_tag(image_tag)
             .build()?
     };
@@ -187,7 +186,6 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
 
     let built_image = tagged_image
         .as_builder()
-        .with_registry(context.container_registry_host())
         .with_digest(&build_output.digest)
         .build()
         .map_err(|_| {
@@ -198,7 +196,7 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         })
         .unwrap();
 
-    debug!("Built container image: {}", built_image);
+    debug!("Using container image: {}", built_image);
     let home_dir = home_dir().ok_or("failed to determine home directory")?;
 
     let databrickscfg_path = if matches!(

@@ -107,6 +107,11 @@ pub fn info() -> Result<GitInfo> {
     })
 }
 
+pub fn is_full_git_commit_hash(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    bytes.len() == 40 && bytes.iter().all(u8::is_ascii_hexdigit)
+}
+
 pub struct RemoteBranch {
     value: String,
     split_at: usize,
