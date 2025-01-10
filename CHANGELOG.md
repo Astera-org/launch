@@ -20,6 +20,16 @@ This allows for faster launching of jobs with different command line arguements.
 
 `launch submit` now sets the environment variable `MLFLOW_TRACKING_URI=databricks` automatically for the container when `.databrickscfg` file is detected.
 
+#### [Expose Katib base URL, namespace and trial name through container env](https://github.com/Astera-org/obelisk/pull/861)
+
+`launch submit --katib` now exposes the following environment variables to the trial runner program:
+
+```
+KATIB_BASE_URL
+KATIB_NAMESPACE
+KATIB_TRIAL_NAME
+```
+
 ## [0.1.9] - 2025-01-04
 
 You can install this version through `pixi` with:

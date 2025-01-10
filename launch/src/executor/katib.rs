@@ -90,6 +90,10 @@ impl From<&crate::katib::FeasibleSpace> for V1beta1FeasibleSpace {
 const TENSORBOARD_DIR: &str = "/var/log/katib/tfevent/";
 const TENSORBOARD_DIR_FLAG: &str = "--tensorboard_dir";
 
+// Prefixed with `__launchKatib` to minimize clashes with existing parameters.
+const LAUNCH_KATIB_TRIAL_NAME: &str = "__launchKatibTrialName";
+const LAUNCH_KATIB_NAMESPACE: &str = "__launchKatibNamespace";
+
 fn trial_spec(input_exp_spec: &crate::katib::ExperimentSpec, args: &ExecutionArgs) -> k8s::V1Job {
     let container_args = {
         let param_args = input_exp_spec.parameters.iter().map(|p| {
@@ -112,6 +116,40 @@ fn trial_spec(input_exp_spec: &crate::katib::ExperimentSpec, args: &ExecutionArg
     let mut trial_spec = common::job_spec(args, None, Some(container_args));
     // Katib doesn't allow metadata in the trial spec
     trial_spec.metadata = None;
+
+    // https://www.kubeflow.org/docs/components/katib/user-guides/trial-template/#use-metadata-in-trial-template
+    trial_spec
+        .spec
+        .as_mut()
+        .unwrap()
+        .template
+        .spec
+        .as_mut()
+        .unwrap()
+        .containers[0]
+        .env
+        .as_mut()
+        .unwrap()
+        .extend(
+            [
+                ("KATIB_BASE_URL", args.context.katib_url().to_owned()),
+                (
+                    "KATIB_TRIAL_NAME",
+                    format!("${{trialParameters.{LAUNCH_KATIB_TRIAL_NAME}}}"),
+                ),
+                (
+                    "KATIB_NAMESPACE",
+                    format!("${{trialParameters.{LAUNCH_KATIB_NAMESPACE}}}"),
+                ),
+            ]
+            .into_iter()
+            .map(|(k, v)| k8s::V1EnvVar {
+                name: k.to_owned(),
+                value: Some(v),
+                value_from: None,
+            }),
+        );
+
     trial_spec
 }
 
@@ -188,6 +226,19 @@ fn experiment(
                         reference: Some(sanitize_param_name(&p.name)),
                         ..Default::default()
                     })
+                    // https://www.kubeflow.org/docs/components/katib/user-guides/trial-template/#use-metadata-in-trial-template
+                    .chain([
+                        km::V1beta1TrialParameterSpec {
+                            name: Some(LAUNCH_KATIB_TRIAL_NAME.to_owned()),
+                            reference: Some("${trialSpec.Name}".to_owned()),
+                            ..Default::default()
+                        },
+                        km::V1beta1TrialParameterSpec {
+                            name: Some(LAUNCH_KATIB_NAMESPACE.to_owned()),
+                            reference: Some("${trialSpec.Namespace}".to_owned()),
+                            ..Default::default()
+                        },
+                    ])
                     .collect(),
             ),
             retain: Some(true),

@@ -77,3 +77,17 @@ with tensorboard.SummaryWriter(log_dir=cfg.tensorboard_dir) as writer:
 > pass `new_style=True` to `add_scalar`.
 > [jax_loop_utils.metric_writers](https://github.com/Astera-org/jax_loop_utils/)
 > does this for you, so consider using that.
+
+## Katib related environment variables
+
+Until [Katib itself provides these environment variables](https://github.com/kubeflow/katib/issues/2390), `launch` will inject the following environment variables into the container environment:
+
+```
+KATIB_BASE_URL
+KATIB_NAMESPACE
+KATIB_TRIAL_NAME
+```
+
+Until [Katib exposes the Experiment name directly](https://github.com/kubeflow/katib/issues/2473), the experiment name can be derived from the Trial name by omitting the randomly generated suffix `-.*`.
+
+These environment variables can be used, for example, to associate the Katib Experiment with an MLFlow Experiment.
