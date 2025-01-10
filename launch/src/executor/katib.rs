@@ -404,11 +404,11 @@ fn terminal_experiment_status(
 }
 
 fn experiment_url(katib_url: &str, namespace: &str, experiment_name: &str) -> String {
-    format!("{katib_url}/experiment/{namespace}/{experiment_name}",)
+    format!("{katib_url}/katib/experiment/{namespace}/{experiment_name}",)
 }
 
 fn trial_url(katib_url: &str, namespace: &str, experiment_name: &str, trial_name: &str) -> String {
-    format!("{katib_url}/experiment/{namespace}/{experiment_name}/trial/{trial_name}",)
+    format!("{katib_url}/katib/experiment/{namespace}/{experiment_name}/trial/{trial_name}",)
 }
 
 fn trial_job_url(headlamp_url: &str, namespace: &str, trial_name: &str) -> String {

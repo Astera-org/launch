@@ -42,9 +42,9 @@ impl ClusterContext {
 
     pub const fn katib_url(&self) -> &'static str {
         match self {
-            ClusterContext::Berkeley => "http://berkeley-katib.taila1eba.ts.net/katib",
-            ClusterContext::Staging => "http://staging-katib.taila1eba.ts.net/katib",
-            ClusterContext::VoltagePark => "http://voltage-park-katib.taila1eba.ts.net/katib",
+            ClusterContext::Berkeley => "http://berkeley-katib.taila1eba.ts.net",
+            ClusterContext::Staging => "http://staging-katib.taila1eba.ts.net",
+            ClusterContext::VoltagePark => "http://voltage-park-katib.taila1eba.ts.net",
         }
     }
 
