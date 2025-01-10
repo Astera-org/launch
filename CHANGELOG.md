@@ -4,6 +4,10 @@
 
 ### Changes
 
+#### [Automatically set MLFLOW_TRACKING_URI to databricks](https://github.com/Astera-org/obelisk/pull/857)
+
+`launch submit` now sets the environment variable `MLFLOW_TRACKING_URI=databricks` automatically for the container when `.databrickscfg` file is detected.
+
 ## [0.1.9] - 2025-01-04
 
 You can install this version through `pixi` with:

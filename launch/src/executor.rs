@@ -133,15 +133,26 @@ impl ExecutionArgs<'_> {
     }
 
     fn env(&self) -> Option<Vec<km::V1EnvVar>> {
-        Some(vec![
-            // Suppress warnings from GitPython (used by mlflow)
-            // about the git executable not being available.
-            km::V1EnvVar {
-                name: "GIT_PYTHON_REFRESH".to_owned(),
-                value: Some("quiet".to_owned()),
-                ..Default::default()
-            },
-        ])
+        Some(
+            [
+                // Suppress warnings from GitPython (used by mlflow)
+                // about the git executable not being available.
+                Some(km::V1EnvVar {
+                    name: "GIT_PYTHON_REFRESH".to_owned(),
+                    value: Some("quiet".to_owned()),
+                    ..Default::default()
+                }),
+                self.databrickscfg_name.map(|_| km::V1EnvVar {
+                    name: "MLFLOW_TRACKING_URI".to_owned(),
+                    value: Some("databricks".to_owned()),
+                    ..Default::default()
+                }),
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>(),
+        )
+        .filter(|x| !x.is_empty())
     }
 }
 
