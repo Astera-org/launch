@@ -151,9 +151,21 @@ docker run --rm -it sha256:89b7200c2632bdf418a6bc10f8a26495ab929947c6d962833a911
 
 ## Release process
 
-1. modify the `version` field in [`launch/Cargo.toml`](./launch/Cargo.toml)
-2. create a branch `git checkout -b launch/release-<version>`
-3. modify `CHANGELOG.md`:
+Releasing launch involves writing a number of separate commits:
+
+- "Fix changelog" - Optionally make adjustments to the release notes for the to-be-released version.
+- "Release launch-<version>" - Adjusts the version and replaces the unreleased version at the top with the to-be-released version in the changelog.
+- "Prepare changelog" - Adds back the unreleased version to the changelog.
+
+The "Release launch-<version>" commit is the actual release commit that will be tagged after CI passes and the PR is approved.
+Tagging is done after the release PR is ready to merge to avoid releases with issues in the changelog.
+
+Here is the full step-by-step process, please follow it rigorously.
+
+1. Update the `version` field in [`launch/Cargo.toml`](./launch/Cargo.toml).
+2. Create a branch `git checkout -b launch/release-<version>`.
+3. If any changes to the `CHANGELOG.md` are required, make them in an initial commit.
+4. Modify `CHANGELOG.md`:
    1. replace `## Unreleased` with:
       ````md
       ## [<version>] - <yyyy>-<mm>-<dd>
@@ -172,7 +184,7 @@ docker run --rm -it sha256:89b7200c2632bdf418a6bc10f8a26495ab929947c6d962833a911
 
       Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/<version>) or build it from source.
       ````
-   4. replace:
+   2. replace:
       ```md
       [unreleased]: https://github.com/Astera-org/obelisk/compare/launch/<previous-version>...HEAD
       ```
@@ -180,9 +192,8 @@ docker run --rm -it sha256:89b7200c2632bdf418a6bc10f8a26495ab929947c6d962833a911
       ```md
       [<version>]: https://github.com/Astera-org/obelisk/compare/launch/<previous-version>...launch/<version>
       ```
-4. commit the changes `git commit -m "Release launch-<version>"`
-5. tag the commit `git tag launch/<version>`
-6. modify `CHANGELOG.md`:
+5. Commit the changes `git commit -am "Release launch-<version>"`.
+6. Modify `CHANGELOG.md`:
    1. add above the last release:
         ```
         ## Unreleased
@@ -194,11 +205,15 @@ docker run --rm -it sha256:89b7200c2632bdf418a6bc10f8a26495ab929947c6d962833a911
         ```
         [unreleased]: https://github.com/Astera-org/obelisk/compare/launch/<version>...HEAD
         ```
-7. commit the changes `git commit -m "Prepare changelog"`
-8. push the changes and tags `git push -u origin launch/release-<version> && git push origin launch/<version>`
-9. merge the release branch back into master
-10. post in the `#infra` slack channel:
+7. Commit the changes `git commit -am "Prepare changelog"`.
+8. Push the changes `git push -u origin launch/release-<version>`.
+9. Iterate on the PR until it passes CI and is approved and ready to merge.
+10. Tag the "Release launch-<version>" commit with `git tag launch/<version> <commit>` and `git push origin launch/<version>`.
+    Be careful not to tag a squashed commit, we want the changelog to have the most recent version at the top.
+    Repeat until release action passes.
+11. Merge PR.
+12. Post in the `#infra` slack channel:
     ```
     launch <version> has been released :partying_face:. Please view the release page if you use launch.
     ```
-    where  `release page` is linked to `https://github.com/Astera-org/obelisk/releases/tag/launch%2F<version>`
+    where  `release page` is linked to `https://github.com/Astera-org/obelisk/releases/tag/launch%2F<version>`.
