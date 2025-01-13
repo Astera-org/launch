@@ -1,3 +1,5 @@
+"""Entrypoint to run an experiment trial."""
+
 import os
 import time
 from dataclasses import dataclass
@@ -6,28 +8,30 @@ import draccus
 import mlflow
 import mlflow.entities
 from databricks.sdk import WorkspaceClient
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard.writer import SummaryWriter
 
-from katib_example.katib_info import KatibInfo
+from katib_example.launch_katib import KatibTrialInfo
 
 
 @dataclass
 class NestedConfig:
+    """Some nested configuration."""
+
     hyperparameter: float
 
 
 @dataclass
 class Config:
-    """Training Config for Machine Learning"""
+    """Training Config for Machine Learning."""
 
     nested: NestedConfig
     tensorboard_dir: str
 
     def __repr__(self) -> str:
-        return draccus.dump(self)
+        return draccus.cfgparsing.dump(self)
 
 
-def set_experiment(path: str) -> mlflow.entities.Experiment:
+def _set_experiment(path: str) -> mlflow.entities.Experiment:
     # Databricks requires that we create parent directories. The MLFlow client
     # does not do this by default.
     parts = path.rsplit("/", 1)
@@ -36,13 +40,13 @@ def set_experiment(path: str) -> mlflow.entities.Experiment:
     return mlflow.set_experiment(path)
 
 
-def run_experiment_trial(cfg: Config):
-    katib = KatibInfo.from_env()
+def _run_experiment_trial(cfg: Config):
+    katib = KatibTrialInfo.from_env()
     assert katib is not None
 
     assert os.environ["MLFLOW_TRACKING_URI"] == "databricks"
 
-    experiment = set_experiment(f"/Shared/launch-example-katib/{katib.experiment_name}")
+    experiment = _set_experiment(f"/Shared/launch-example-katib/{katib.experiment_name}")
     with mlflow.start_run(experiment_id=experiment.experiment_id, run_name=katib.trial_name) as run:
         mlflow.set_tags(katib.tags())
 
@@ -68,11 +72,11 @@ def run_experiment_trial(cfg: Config):
             mlflow.log_metrics({"loss": loss}, step=0, run_id=run.info.run_id)
 
 
-def main():
-    cfg = draccus.parse(config_class=Config)
+def _main():
+    cfg = draccus.argparsing.parse(config_class=Config)
     print(cfg, flush=True)
 
-    run_experiment_trial(cfg)
+    _run_experiment_trial(cfg)
 
     # Wait for a bit so that the katib metrics sidecar container has enough time
     # to obtain the main container's pid.
@@ -80,4 +84,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    _main()

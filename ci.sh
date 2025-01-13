@@ -4,6 +4,8 @@
 
 set -euo pipefail
 
+cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null
+
 # The version is not pinned here nor in CI so we automatically stay up-to-date. If this causes too much churn we can
 # consider pinning the toolchain version.
 NIGHTLY=nightly
@@ -25,4 +27,5 @@ cargo test
 pushd examples/katib
 uv run -- ruff format
 uv run -- ruff check --fix
+uv run -- pyright
 popd

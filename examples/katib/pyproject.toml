@@ -30,6 +30,7 @@ draccus = { git = "https://github.com/dlwh/draccus", rev = "f78f3527d6436d74fb12
 
 [dependency-groups]
 dev = [
+    "pyright>=1.1.391",
     "ruff>=0.9.1",
 ]
 
@@ -41,6 +42,7 @@ target-version = "py311"
 select = [
     "A",   # flake8-builtins
     "B",   # flake8-bugbear
+    "D",   # pydocstyle https://www.pydocstyle.org/en/stable/error_codes.html
     "E",   # pycodestyle
     "F",   # Pyflakes
     "I",   # isort
@@ -52,4 +54,8 @@ ignore = [
     "A003",   # builtin-attribute-shadowing
     "SIM108", # Use the ternary operator
     "UP007",  # Allow Optional[type] instead of X | Y
+    "D105",
 ]
+
+[tool.pyright]
+typeCheckingMode = "standard"
