@@ -4,17 +4,17 @@
 
 ### Changes
 
-#### [Image tags now use git commit ids](https://github.com/Astera-org/obelisk/pull/838)
+#### [Clean container image builds are now tagged with the commit hash](https://github.com/Astera-org/obelisk/pull/838)
 
-Clean Docker image builds and Kaniko image builds now use git commit ids as the tag: "voltage-park-docker.taila1eba.ts.net/kubernetes:30151d451582468a64156e00448143b123b3a0b8"
+Clean container image builds now use git commit hash as the tag: "voltage-park-docker.taila1eba.ts.net/kubernetes:30151d451582468a64156e00448143b123b3a0b8"
 
-Dirty docker image builds still use the "username-random_id" format: "voltage-park-docker.taila1eba.ts.net/kubernetes:matthew-27cb5f11"
+Dirty container image builds still use the "username-random" format: "voltage-park-docker.taila1eba.ts.net/kubernetes:matthew-27cb5f11"
 
-#### [Kaniko builder doesn't rebuild existing images](https://github.com/Astera-org/obelisk/pull/838)
+#### [Kaniko builder reuses previously built images when possible](https://github.com/Astera-org/obelisk/pull/838)
 
-If a remote image exists, based on the current git id, Kaniko builder will use that image instead of re-building it.
+If a container image already exists in the remote container registry, based on the current git hash, Kaniko builder will use that image instead of re-building it.
 
-This allows for faster launching of jobs with different command line arguements.
+This allows for faster launching of jobs with different command line arguments.
 
 #### [Automatically set MLFLOW_TRACKING_URI to databricks](https://github.com/Astera-org/obelisk/pull/857)
 
@@ -29,6 +29,10 @@ KATIB_BASE_URL
 KATIB_NAMESPACE
 KATIB_TRIAL_NAME
 ```
+
+#### [Automatic update warning](https://github.com/Astera-org/obelisk/pull/835)
+
+`launch` now emits a warning when a newer version is available.
 
 ## [0.1.9] - 2025-01-04
 
