@@ -4,7 +4,7 @@ on: # yamllint disable-line rule:truthy
   pull_request:
   push:
     branches:
-      - master
+      - main
   workflow_dispatch:
 jobs:
   # https://doc.rust-lang.org/cargo/reference/unstable.html#direct-minimal-versions

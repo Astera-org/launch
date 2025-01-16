@@ -206,7 +206,7 @@ Here is the full step-by-step process, please follow it rigorously.
 10. Tag the "Release launch-<version>" commit with `git tag launch/<version> <commit>` and `git push origin launch/<version>`.
     Be careful not to tag a squashed commit, we want the changelog to have the most recent version at the top.
     Repeat until release action passes.
-11. Merge PR with `git checkout master && git pull --no-rebase && git merge --no-ff launch/release-<version> && git push`.
+11. Merge PR with `git checkout main && git pull --no-rebase && git merge --no-ff launch/release-<version> && git push`.
 12. Post in the `#infra` slack channel:
     ```
     launch <version> has been released :partying_face:. Please view the release page if you use launch.

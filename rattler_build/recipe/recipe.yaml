@@ -26,5 +26,5 @@ requirements:
     - ${{ compiler('rust') }}
 
 about:
-  homepage: https://github.com/Astera-org/obelisk/tree/master/launch/README.md
+  homepage: https://github.com/Astera-org/launch/tree/main/README.md
   description: ${{ description }}

@@ -207,10 +207,8 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
         match std::fs::metadata(&path) {
             Ok(_) => Some(path),
             Err(error) => {
-                let error_string = format!(
-                    "Databricks configuration not found at {path:?}: {error}. \
-                    Please follow the instructions at https://github.com/Astera-org/obelisk/blob/master/research/README.md#logging-to-mlflow."
-                );
+                let error_string =
+                    format!("Databricks configuration not found at {path:?}: {error}.");
                 if databrickscfg_mode == DatabricksCfgMode::Require {
                     return Err(error_string.into());
                 } else {

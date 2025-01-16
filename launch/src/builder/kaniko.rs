@@ -152,7 +152,7 @@ impl KanikoBuilder<'_> {
         };
 
         // TODO support repo git url
-        let push_remote = "github.com/Astera-org/obelisk";
+        let push_remote = "github.com/Astera-org/launch";
 
         // Does not take into account symlinks and what not, should be good enough.
         let sub_path = working_directory
