@@ -1,0 +1,56 @@
+---
+name: main
+on: # yamllint disable-line rule:truthy
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+jobs:
+  # https://doc.rust-lang.org/cargo/reference/unstable.html#direct-minimal-versions
+  launch-mininal-versions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5 # If CI starts to take longer than this we should attempt to optimize before extending.
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchains
+        run: rustup --quiet toolchain install --profile minimal stable nightly --component rustfmt,clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Direct minimal versions
+        run: cargo +nightly -Zdirect-minimal-versions update
+
+      - name: Build
+        run: cargo build --all-targets --all-features --locked
+
+      - name: Test
+        run: cargo test --all-features --locked
+
+  launch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5 # If CI starts to take longer than this we should attempt to optimize before extending.
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchains
+        run: rustup --quiet toolchain install --profile minimal stable nightly --component rustfmt,clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo +nightly fmt --check
+
+      - name: Build
+        run: cargo build --all-targets --all-features --locked
+
+      - name: Lint
+        run: cargo clippy --all-targets --all-features --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --all-features --locked
