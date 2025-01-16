@@ -66,7 +66,7 @@ jobs:
         run: |
           for pkg in $(find output -type f \( -name "*.conda" \) ); do
             echo "Uploading ${pkg}"
-            rattler-build upload prefix -c obelisk "${pkg}"
+            rattler-build upload prefix -c obelisk-public "${pkg}"
           done
         env:
           PREFIX_API_KEY: ${{ secrets.PREFIX_DEV_API_KEY }}

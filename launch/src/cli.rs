@@ -132,7 +132,7 @@ fn query_latest_version() -> Option<semver::Version> {
     let output = std::process::Command::new("pixi")
         .args([
             "search",
-            "--channel=https://repo.prefix.dev/obelisk",
+            "--channel=https://repo.prefix.dev/obelisk-public",
             "--limit=1",
             "launch",
         ])

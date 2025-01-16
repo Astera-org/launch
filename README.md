@@ -1,6 +1,7 @@
-# launch
+# `launch`
 
-Launch makes it easy to run a program in our kubernetes cluster. It works by building a docker container and creating a kubernetes job using that container.
+The `launch` application makes it easy to run a program in a [Kubernetes](https://kubernetes.io/) cluster.
+It works by building a docker container and creating a [Kubernetes Job](https://kubernetes.io/docs/concepts/workloads/controllers/job/) using that container.
 
 ## Installation
 
@@ -10,18 +11,14 @@ You will need to both 1) obtain the `launch` binary, 2) and ensure that certain 
 
 You can obtain the `launch` program itself as a pre-built binary or you can build it from source.
 
-#### From private registry
+#### Install with `pixi`
 
-Launch is available as a package in our [private registry](https://repo.prefix.dev/obelisk). To authenticate with our private registry, use the ["prefix.dev API key" from 1password](https://asterainstitute.1password.com/vaults/5fznj7lifbm3qqmwvv6mde6upm/allitems/yesuo2guat53a7riiv4n7kcpya) in place of `<token>` and run:
-
-```
-pixi auth login https://repo.prefix.dev/obelisk --token <token>
-```
+Launch is available as a package in the [prefix.dev](https://prefix.dev/) channel [obelisk-public](https://repo.prefix.dev/obelisk-public).
 
 To install `launch`, run:
 
 ```
-pixi global install -c https://repo.prefix.dev/obelisk launch
+pixi global install --channel https://repo.prefix.dev/obelisk-public launch
 ```
 
 To update `launch`, run:
@@ -30,7 +27,7 @@ To update `launch`, run:
 pixi global upgrade launch
 ```
 
-#### From source
+#### Install from source
 
 To install `launch` from source you need to have a recent stable Rust toolchain installed to compile the source code.
 We recommend using [`rustup`](https://rustup.rs/) to install a Rust toolchain.
@@ -38,7 +35,7 @@ We recommend using [`rustup`](https://rustup.rs/) to install a Rust toolchain.
 Once you have a Rust toolchain set up, you can install `launch` directly from the git repository with:
 
 ```
-cargo install --git "https://github.com/Astera-org/obelisk"
+cargo install --git "https://github.com/Astera-org/launch"
 ```
 
 You can specify a `--branch <branch>`, `--tag <tag>`, or `--rev <revision>` to install a specific version, see the [cargo install documentation](https://doc.rust-lang.org/cargo/commands/cargo-install.html) for details.
@@ -55,18 +52,16 @@ To update `launch`, simply `cargo install` another version.
 
 The following applications should be available on your system in order to run `launch`.
 
-| Name                                                         | Installation Check    | Installation Instructions                                                                                                               |
-| ------------------------------------------------------------ | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| [Tailscale](https://tailscale.com/kb/1151/what-is-tailscale) | `tailscale --version` | [instructions](https://astera.getoutline.com/doc/tailscale-vpn-SJAKxvmBuw)                                                              |
-| [Kubernetes](https://kubernetes.io/docs/concepts/overview/)  | `kubectl version`     | [instructions](https://kubernetes.io/docs/tasks/tools/)                                                                                 |
-| [Docker](https://docs.docker.com/engine/)                    | `docker --version`    | [Docker Engine](https://docs.docker.com/engine/) (Docker Engine is also included in [Docker Desktop](https://docs.docker.com/desktop/)) |
-| [Git](https://git-scm.com/)                                  | `git --version`       | [instructions](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)                                                           |
+| Name                                                                    | Installation Check    | Installation Instructions                                                                                                               |
+| ----------------------------------------------------------------------- | --------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| [Kubernetes](https://kubernetes.io/docs/concepts/overview/)             | `kubectl version`     | [instructions](https://kubernetes.io/docs/tasks/tools/)                                                                                 |
+| [Docker](https://docs.docker.com/engine/)                               | `docker --version`    | [Docker Engine](https://docs.docker.com/engine/) (Docker Engine is also included in [Docker Desktop](https://docs.docker.com/desktop/)) |
+| [Git](https://git-scm.com/)                                             | `git --version`       | [instructions](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)                                                           |
+| [Tailscale](https://tailscale.com/kb/1151/what-is-tailscale) (optional) | `tailscale --version` | [instructions](https://tailscale.com/kb/1347/installation)                                                                              |
 
 ### **\[Optional\]** Authenticate with databricks
 
-If your jobs use MLFlow, your job needs a file that allows MLFlow to push information to databricks.
-Once per machine, follow the [steps described in the fluid README](../fluid/README.md#logging-to-mlflow).
-The databricks authentication information from your machine will then be injected into the containers running your jobs.
+Launch will automatically upload your [.databrickscfg](https://docs.databricks.com/en/dev-tools/auth/config-profiles.html) to Kubernetes and make it available to submitted jobs. 
 
 ## Usage
 
@@ -173,24 +168,24 @@ Here is the full step-by-step process, please follow it rigorously.
       You can install this version through `pixi` with:
 
       ```bash
-      pixi global install --channel https://repo.prefix.dev/obelisk launch==<version>
+      pixi global install --channel https://repo.prefix.dev/obelisk-public launch==<version>
       ```
 
       Or build it from source with:
 
       ```bash
-      cargo install launch --locked --force --git https://github.com/Astera-org/obelisk --tag launch/<version>
+      cargo install launch --locked --force --git https://github.com/Astera-org/launch --tag launch/<version>
       ```
 
-      Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/obelisk/releases/tag/launch/<version>) or build it from source.
+      Alternatively, download the appropriate binary for your platform from [GitHub](https://github.com/Astera-org/launch/releases/tag/launch/<version>) or build it from source.
       ````
    2. replace:
       ```md
-      [unreleased]: https://github.com/Astera-org/obelisk/compare/launch/<previous-version>...HEAD
+      [unreleased]: https://github.com/Astera-org/launch/compare/launch/<previous-version>...HEAD
       ```
       with:
       ```md
-      [<version>]: https://github.com/Astera-org/obelisk/compare/launch/<previous-version>...launch/<version>
+      [<version>]: https://github.com/Astera-org/launch/compare/launch/<previous-version>...launch/<version>
       ```
 5. Commit the changes `git commit -am "Release launch-<version>"`.
 6. Modify `CHANGELOG.md`:
@@ -203,7 +198,7 @@ Here is the full step-by-step process, please follow it rigorously.
         ```
    2. add above the links list:
         ```
-        [unreleased]: https://github.com/Astera-org/obelisk/compare/launch/<version>...HEAD
+        [unreleased]: https://github.com/Astera-org/launch/compare/launch/<version>...HEAD
         ```
 7. Commit the changes `git commit -am "Prepare changelog"`.
 8. Push the changes `git push -u origin launch/release-<version>`.
@@ -216,4 +211,4 @@ Here is the full step-by-step process, please follow it rigorously.
     ```
     launch <version> has been released :partying_face:. Please view the release page if you use launch.
     ```
-    where  `release page` is linked to `https://github.com/Astera-org/obelisk/releases/tag/launch%2F<version>`.
+    where  `release page` is linked to `https://github.com/Astera-org/launch/releases/tag/launch%2F<version>`.
