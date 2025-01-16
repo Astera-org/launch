@@ -1,0 +1,72 @@
+name: release
+
+permissions:
+  contents: write
+
+on:
+  push:
+    tags:
+      - launch/[0-9]+.[0-9]+.[0-9]+
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/create-gh-release-action@v1
+        with:
+          prefix: launch/
+          changelog: launch/CHANGELOG.md
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  upload-assets:
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-22.04
+          - target: aarch64-apple-darwin
+            os: macos-14
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/upload-rust-binary-action@v1
+        with:
+          manifest-path: launch/Cargo.toml
+          bin: launch
+          target: ${{ matrix.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  rattler-build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-14]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        working-directory: launch/rattler_build
+    steps:
+      - uses: actions/checkout@v4
+      # The rattler-build-action does not support setting the working directory, see
+      # https://github.com/prefix-dev/rattler-build-action/issues/29. This action both 1) installs rattler-build and 2)
+      # invokes rattler-build build. We can nullify the build by passing `--help` as a build argument. This leaves
+      # rattler-build installed on the runner for us to invoke manually.
+      - name: install rattler-build
+        uses: prefix-dev/rattler-build-action@v0.2.9
+        with:
+          rattler-build-version: v0.17.1
+          build-args: --help
+          upload-artifact: false
+      - name: build
+        run: rattler-build build --experimental --recipe-dir recipe
+      - name: upload
+        run: |
+          for pkg in $(find output -type f \( -name "*.conda" \) ); do
+            echo "Uploading ${pkg}"
+            rattler-build upload prefix -c obelisk "${pkg}"
+          done
+        env:
+          PREFIX_API_KEY: ${{ secrets.PREFIX_DEV_API_KEY }}
