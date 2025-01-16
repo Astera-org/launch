@@ -30,7 +30,7 @@ draccus = { git = "https://github.com/dlwh/draccus", rev = "f78f3527d6436d74fb12
 
 [dependency-groups]
 dev = [
-    "pyright>=1.1.391",
+    "pyright>=1.1.392",
     "ruff>=0.9.1",
 ]
 
@@ -56,6 +56,7 @@ ignore = [
     "UP007",  # Allow Optional[type] instead of X | Y
     "D105",
 ]
+pydocstyle = { convention = "google" }
 
 [tool.pyright]
 typeCheckingMode = "standard"
