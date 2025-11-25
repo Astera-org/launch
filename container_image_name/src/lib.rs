@@ -34,13 +34,24 @@ use ::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use regex::Regex;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct InvalidImageName(String);
+pub struct InvalidContainerImageNameMarker;
 
-impl std::error::Error for InvalidImageName {}
+impl std::error::Error for InvalidContainerImageNameMarker {}
 
-impl std::fmt::Display for InvalidImageName {
+impl std::fmt::Display for InvalidContainerImageNameMarker {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "invalid container name: {:?}", self.0)
+        f.write_str("invalid container image name")
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct InvalidContainerImageName(String);
+
+impl std::error::Error for InvalidContainerImageName {}
+
+impl std::fmt::Display for InvalidContainerImageName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid container image name: {:?}", self.0)
     }
 }
 
@@ -186,7 +197,7 @@ impl Indices {
 }
 
 impl FromStr for Indices {
-    type Err = InvalidImageName;
+    type Err = InvalidContainerImageNameMarker;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         static IMAGE_NAME_REGEX: LazyLock<Regex> = LazyLock::new(|| {
@@ -200,7 +211,7 @@ impl FromStr for Indices {
             )).unwrap()
         });
 
-        let captures = IMAGE_NAME_REGEX.captures(s).ok_or_else(|| InvalidImageName(s.to_string()))?;
+        let captures = IMAGE_NAME_REGEX.captures(s).ok_or(InvalidContainerImageNameMarker)?;
         // NOTE: The first sub-capture match, index 0, matches the entire string.
         // NOTE: Obtaining match data by index rather than group name to avoid string lookup.
         Ok(Self {
@@ -210,7 +221,7 @@ impl FromStr for Indices {
                     port_start: captures.get(2).map(|m| m.start()),
                 }
             }),
-            path_start: captures.get(3).map(|m| m.start()).ok_or_else(|| InvalidImageName(s.to_string()))?,
+            path_start: captures.get(3).map(|m| m.start()).ok_or(InvalidContainerImageNameMarker)?,
             tag_start: captures.get(4).map(|m| m.start()),
             digest_start: captures.get(5).map(|m| IndicesDigest {
                 algorithm_start: m.start(),
@@ -330,9 +341,15 @@ pub struct ImageName {
 }
 
 impl ImageName {
-    pub fn new(value: String) -> Result<Self, InvalidImageName> {
+    pub fn new(value: String) -> Result<Self, InvalidContainerImageName> {
+        let indices = match value.parse() {
+            Ok(indices) => indices,
+            Err(InvalidContainerImageNameMarker) => {
+                return Err(InvalidContainerImageName(value))
+            }
+        };
         Ok(Self {
-            indices: value.parse()?,
+            indices,
             buffer: value,
         })
     }
@@ -370,10 +387,10 @@ impl ImageName {
 impl_image_name_common!(ImageName);
 
 impl FromStr for ImageName {
-    type Err = InvalidImageName;
+    type Err = InvalidContainerImageNameMarker;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        ImageNameRef::new(s).map(|x| x.to_owned())
+        ImageNameRef::new(s).map(ImageNameRef::to_owned)
     }
 }
 
@@ -384,7 +401,7 @@ impl From<ImageNameRef<'_>> for ImageName {
 }
 
 impl TryFrom<String> for ImageName {
-    type Error = InvalidImageName;
+    type Error = InvalidContainerImageName;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
         Self::new(value)
@@ -425,7 +442,7 @@ pub struct ImageNameRef<'a> {
 }
 
 impl<'a> ImageNameRef<'a> {
-    pub fn new(value: &'a str) -> Result<Self, InvalidImageName> {
+    pub fn new(value: &'a str) -> Result<Self, InvalidContainerImageNameMarker> {
         Ok(Self {
             buffer: value,
             indices: value.parse()?,
@@ -467,7 +484,7 @@ impl<'a> From<&'a ImageName> for ImageNameRef<'a> {
 }
 
 impl<'a> TryFrom<&'a str> for ImageNameRef<'a> {
-    type Error = InvalidImageName;
+    type Error = InvalidContainerImageNameMarker;
 
     fn try_from(value: &'a str) -> Result<Self, Self::Error> {
         Self::new(value)
@@ -632,7 +649,7 @@ impl<'a> ImageNameBuilder<'a> {
         self
     }
 
-    pub fn build(self) -> Result<ImageName, InvalidImageName> {
+    pub fn build(self) -> Result<ImageName, InvalidContainerImageName> {
         let mut buffer = String::with_capacity(
             self.registry.as_ref().map(|x| x.len()).unwrap_or_default()
                 + self.path.len()
@@ -720,10 +737,10 @@ mod tests {
         }
 
         {
-            assert_eq!(ImageNameRef::new(".").err().unwrap(), InvalidImageName(".".to_owned())); // invalid path.
+            assert_eq!(ImageNameRef::new(".").err().unwrap(), InvalidContainerImageNameMarker); // invalid path.
             assert_eq!(
                 ImageNameRef::new("a@sha256:1234").err().unwrap(),
-                InvalidImageName("a@sha256:1234".to_owned()),
+                InvalidContainerImageNameMarker,
             ); // digest too short.
         }
     }
