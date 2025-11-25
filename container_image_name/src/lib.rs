@@ -34,13 +34,13 @@ use ::serde::{Deserialize, Deserializer, Serialize, Serializer};
 use regex::Regex;
 
 #[derive(Debug, PartialEq, Eq)]
-pub struct InvalidImageName;
+pub struct InvalidImageName(String);
 
 impl std::error::Error for InvalidImageName {}
 
 impl std::fmt::Display for InvalidImageName {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("invalid container name")
+        write!(f, "invalid container name: {:?}", self.0)
     }
 }
 
@@ -200,7 +200,7 @@ impl FromStr for Indices {
             )).unwrap()
         });
 
-        let captures = IMAGE_NAME_REGEX.captures(s).ok_or(InvalidImageName)?;
+        let captures = IMAGE_NAME_REGEX.captures(s).ok_or_else(|| InvalidImageName(s.to_string()))?;
         // NOTE: The first sub-capture match, index 0, matches the entire string.
         // NOTE: Obtaining match data by index rather than group name to avoid string lookup.
         Ok(Self {
@@ -210,7 +210,7 @@ impl FromStr for Indices {
                     port_start: captures.get(2).map(|m| m.start()),
                 }
             }),
-            path_start: captures.get(3).map(|m| m.start()).ok_or(InvalidImageName)?,
+            path_start: captures.get(3).map(|m| m.start()).ok_or_else(|| InvalidImageName(s.to_string()))?,
             tag_start: captures.get(4).map(|m| m.start()),
             digest_start: captures.get(5).map(|m| IndicesDigest {
                 algorithm_start: m.start(),
@@ -720,10 +720,10 @@ mod tests {
         }
 
         {
-            assert_eq!(ImageNameRef::new(".").err().unwrap(), InvalidImageName); // invalid path.
+            assert_eq!(ImageNameRef::new(".").err().unwrap(), InvalidImageName(".".to_owned())); // invalid path.
             assert_eq!(
                 ImageNameRef::new("a@sha256:1234").err().unwrap(),
-                InvalidImageName
+                InvalidImageName("a@sha256:1234".to_owned()),
             ); // digest too short.
         }
     }
