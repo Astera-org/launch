@@ -173,7 +173,7 @@ pub fn submit(context: &ClusterContext, args: SubmitArgs) -> Result<()> {
             )
         };
 
-        ImageName::builder(image_name)
+        ImageName::builder(image_name.to_lowercase())
             .with_registry(context.container_registry_host())
             .with_tag(image_tag)
             .build()?
